@@ -79,6 +79,18 @@ impl StyledText {
     }
 }
 
+enum OutputRow {
+    Info {
+        label: StyledText,
+        value: StyledText,
+    },
+    Section(StyledText),
+    Blank,
+}
+struct ComponentOutput {
+    rows: Vec<OutputRow>,
+}
+
 #[derive(Parser)]
 #[command(
     name="fetchall",
@@ -97,7 +109,7 @@ fn main() {
     let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
 
     if sysinfo::IS_SUPPORTED_SYSTEM {
-        let mut info: Vec<(StyledText, StyledText)> = Vec::new();
+        let mut info: ComponentOutput = ComponentOutput { rows: Vec::new() };
 
         let mut sys = System::new_all();
         let disks = Disks::new_with_refreshed_list();
@@ -119,6 +131,9 @@ fn main() {
         let total_disk = space as f64 / 1_073_741_824.0;
         let free_disk = available_space as f64 / 1_073_741_824.0;
 
+        info.rows
+            .push(OutputRow::Section(StyledText::new("System Information").bold().underline()));
+
         // cpu
         let cpu_usage = sys.global_cpu_usage();
         let cpu_name = sys
@@ -128,10 +143,10 @@ fn main() {
             .unwrap_or("Unknown CPU");
 
         // println!("  {} {}", "os   :".blue().bold(), os_name.white());
-        info.push((
-            StyledText::new("os").blue().bold(),
-            StyledText::new(os_name),
-        ));
+        info.rows.push(OutputRow::Info {
+            label: StyledText::new("os").blue().bold(),
+            value: StyledText::new(os_name),
+        });
 
         // println!(
         //     "  {} {:.2} / {:.2} GB",
@@ -139,10 +154,10 @@ fn main() {
         //     used_mem,
         //     total_mem
         // );
-        info.push((
-            StyledText::new("mem").green().bold(),
-            StyledText::new(format!("{:.2} / {:.2} GB", used_mem, total_mem)),
-        ));
+        info.rows.push(OutputRow::Info {
+            label: StyledText::new("mem").green().bold(),
+            value: StyledText::new(format!("{:.2} / {:.2} GB", used_mem, total_mem)),
+        });
 
         // println!(
         //     "  {} {:.2} / {:.2} GB {} {:.2} {}",
@@ -153,13 +168,13 @@ fn main() {
         //     free_disk.dimmed(),
         //     "GB)".dimmed(),
         // );
-        info.push((
-            StyledText::new("disk").yellow().bold(),
-            StyledText::new(format!(
+        info.rows.push(OutputRow::Info {
+            label: StyledText::new("disk").yellow().bold(),
+            value: StyledText::new(format!(
                 "{:.2} / {:.2} GB (free: {:.2} GB)",
                 used_disk, total_disk, free_disk
             )),
-        ));
+        });
 
         // println!(
         //     "  {} {} ({:.1}%)",
@@ -167,10 +182,12 @@ fn main() {
         //     cpu_name,
         //     cpu_usage
         // );
-        info.push((
-            StyledText::new("cpu").red().bold(),
-            StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage)),
-        ));
+        info.rows.push(OutputRow::Info {
+            label: StyledText::new("cpu").red().bold(),
+            value: StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage)),
+        });
+
+        info.rows.push(OutputRow::Blank);
 
         let logo = StyledText::new(indoc! {r#"
             ///////////////// /////////////////
@@ -198,36 +215,47 @@ fn main() {
 
         let label_gap: usize = 2;
         let label_width = info
+            .rows
             .iter()
-            .map(|(label, _)| label.width())
+            .filter_map(|row| match row {
+                OutputRow::Info { label, .. } => Some(label),
+                _ => None,
+            })
+            .map(|label| label.width())
             .max()
             .unwrap_or(10);
 
-        for paired in logo.lines().zip_longest(info.iter()) {
-            let (line, (label, value)) = match paired {
-                EitherOrBoth::Both(line, (label, value)) => (line, (label, value)),
-                EitherOrBoth::Left(line) => (line, (&StyledText::new(""), &StyledText::new(""))),
-                EitherOrBoth::Right((label, value)) => (StyledText::new(""), (label, value)),
+        for paired in logo.lines().zip_longest(info.rows.iter()) {
+            let (line, row): (StyledText, &OutputRow) = match paired {
+                EitherOrBoth::Both(line, row) => (line, row),
+                EitherOrBoth::Left(line) => (line, &OutputRow::Blank),
+                EitherOrBoth::Right(row) => (StyledText::new(""), row),
             };
             let logo_pad: usize = if logo_width > line.width() {
                 logo_width - line.width() + logo_gap
             } else {
                 logo_gap
             };
-            let label_pad: usize = if label_width > label.width() {
-                label_width - label.width() + label_gap - 1
-            } else {
-                label_gap - 1
+            let row_text: String = match row {
+                OutputRow::Info { label, value } => {
+                    let label_pad: usize = if label_width > label.width() {
+                        label_width - label.width() + label_gap - 1
+                    } else {
+                        label_gap - 1
+                    };
+                    format!(
+                        "{}{}{} {}",
+                        label.render(),
+                        " ".repeat(label_pad),
+                        if label.text.is_empty() { " " } else { ":" },
+                        value.render(),
+                    )
+                }
+                OutputRow::Section(section) => section.render(),
+                OutputRow::Blank => "".to_string(),
             };
-            println!(
-                "{}{}{}{} {} {}",
-                line.render(),
-                " ".repeat(logo_pad),
-                label.render(),
-                " ".repeat(label_pad),
-                if label.text.is_empty() { " " } else { ":" },
-                value.render(),
-            );
+
+            println!("{}{}{}", line.render(), " ".repeat(logo_pad), row_text,);
         }
         println!();
     } else {
