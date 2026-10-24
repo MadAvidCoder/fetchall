@@ -42,7 +42,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let active_components: Vec<&dyn Component> = match args.profile {
-        Profile::Default => vec![&UserComponent, &GitComponent, &SystemComponent],
+        Profile::Default => vec![&UserComponent, &SystemComponent, &GitComponent],
         Profile::System => vec![&UserComponent, &SystemComponent],
         Profile::Dev => vec![&UserComponent, &GitComponent, &DevEnvironmentComponent],
         Profile::Life => vec![&UserComponent],
