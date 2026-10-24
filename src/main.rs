@@ -1,5 +1,6 @@
 mod component;
 mod components;
+mod helpers;
 mod output;
 mod renderer;
 mod styled_text;

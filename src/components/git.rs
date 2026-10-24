@@ -1,8 +1,9 @@
 use crate::component::Component;
+use crate::helpers::format_relative_time;
 use crate::output::{ComponentOutput, OutputRow};
 use crate::styled_text::StyledText;
 use anyhow::Result;
-use git2::{BranchType, Repository, StatusOptions};
+use git2::{BranchType, Repository, Status, StatusOptions};
 
 pub struct GitComponent;
 
@@ -40,11 +41,11 @@ impl Component for GitComponent {
             .as_ref()
             .and_then(|h| h.shorthand().ok().map(str::to_owned));
         let cur_branch_text = cur_branch.as_deref().unwrap_or("Detached HEAD");
-        
+
         if let Some(cur_branch) = cur_branch.as_deref()
             && let Ok(branch) = repo.find_branch(cur_branch, BranchType::Local)
             && let Ok(upstream) = branch.upstream()
-            && let Some(head) = head
+            && let Some(ref head) = head
             && let Ok((ahead, behind)) = repo.graph_ahead_behind(
                 head.peel_to_commit()?.id(),
                 upstream.get().peel_to_commit()?.id(),
@@ -66,18 +67,37 @@ impl Component for GitComponent {
                 .include_untracked(true)
                 .recurse_untracked_dirs(true),
         ))?;
-        let untracked = statuses
-            .iter()
-            .filter(|entry| entry.status().is_wt_new())
-            .count();
-        let staged = statuses
-            .iter()
-            .filter(|entry| entry.status().is_index_new() || entry.status().is_index_modified())
-            .count();
-        let unstaged = statuses
-            .iter()
-            .filter(|entry| entry.status().is_wt_modified() || entry.status().is_wt_deleted())
-            .count();
+
+        let mut conflicts: usize = 0;
+        let mut untracked: usize = 0;
+        let mut staged: usize = 0;
+        let mut unstaged: usize = 0;
+        for entry in statuses.iter() {
+            let status = entry.status();
+            if status.is_conflicted() {
+                conflicts += 1;
+            }
+            if status.intersects(
+                Status::INDEX_NEW
+                    | Status::INDEX_MODIFIED
+                    | Status::INDEX_DELETED
+                    | Status::INDEX_RENAMED
+                    | Status::INDEX_TYPECHANGE,
+            ) {
+                staged += 1;
+            }
+            if status.intersects(
+                Status::WT_MODIFIED
+                    | Status::WT_DELETED
+                    | Status::WT_RENAMED
+                    | Status::WT_TYPECHANGE,
+            ) {
+                unstaged += 1;
+            }
+            if status.intersects(Status::WT_NEW) {
+                untracked += 1;
+            }
+        }
 
         output.rows.push(OutputRow::Info {
             label: StyledText::new("changes").yellow().bold(),
@@ -86,7 +106,7 @@ impl Component for GitComponent {
             } else {
                 [
                     (staged, "staged"),
-                    (unstaged, "unstaged"),
+                    (unstaged, "modified"),
                     (untracked, "untracked"),
                 ]
                 .into_iter()
@@ -96,6 +116,37 @@ impl Component for GitComponent {
                 .join(" | ")
             }),
         });
+        if conflicts > 0 {
+            output.rows.push(OutputRow::Info {
+                label: StyledText::new("conflicts").red().bold(),
+                value: StyledText::new(format!("{conflicts} detected")),
+            });
+        }
+
+        let latest_commit = head.and_then(|h| h.peel_to_commit().ok());
+        let commit_value = match latest_commit {
+            Some(commit) => {
+                let hash = commit.id().to_string();
+                let short_hash = hash[..7.min(hash.len())].to_string();
+                let summary = commit
+                    .message()
+                    .ok()
+                    .and_then(|s| s.split("\n").next());
+                let time = format_relative_time(commit.time().seconds());
+                if let Some(summary) = summary {
+                    format!("{} | {} | {}", short_hash, summary, time)
+                } else {
+                    format!("{} | {}", short_hash, time)
+                }
+            }
+            None => "No commits yet".into(),
+        };
+        output.rows.push(OutputRow::Info {
+            label: StyledText::new("latest").magenta().bold(),
+            value: StyledText::new(commit_value),
+        });
+
+        output.rows.push(OutputRow::Blank);
 
         Ok(output)
     }
