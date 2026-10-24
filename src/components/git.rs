@@ -134,7 +134,7 @@ impl Component for GitComponent {
                     .and_then(|s| s.split("\n").next());
                 let time = format_relative_time(commit.time().seconds());
                 if let Some(summary) = summary {
-                    format!("{} | {} | {}", short_hash, summary, time)
+                    format!("{} | {} | {}", short_hash, time, summary)
                 } else {
                     format!("{} | {}", short_hash, time)
                 }

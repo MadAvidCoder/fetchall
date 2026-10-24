@@ -21,16 +21,16 @@ pub fn format_relative_time(epoch_seconds: i64) -> String {
     if seconds < 60 || minutes == 0 {
         "Just now".to_string()
     } else if minutes < 60 || hours == 0 {
-        format!("{} minutes ago", minutes)
+        format!("{}m ago", minutes)
     } else if hours < 24 || days == 0 {
-        format!("{} hours ago", hours)
+        format!("{}h ago", hours)
     } else if days < 7 || weeks == 0 {
-        format!("{} days ago", days)
+        format!("{}d ago", days)
     } else if weeks < 4 || months == 0 {
-        format!("{} weeks ago", weeks)
+        format!("{}w ago", weeks)
     } else if months < 12 || years == 0 {
-        format!("{} months ago", months)
+        format!("{}mo ago", months)
     } else {
-        format!("{} years ago", years)
+        format!("{}y ago", years)
     }
 }
