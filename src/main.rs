@@ -63,6 +63,13 @@ impl StyledText {
         reversed,
     );
 
+    fn lines(&self) -> impl Iterator<Item = Self> + '_ {
+        self.text.lines().map(|line| Self {
+            text: line.to_string(),
+            style: self.style,
+        })
+    }
+
     fn render(&self) -> String {
         self.text.style(self.style).to_string()
     }
@@ -171,7 +178,7 @@ fn main() {
 
         println!();
 
-        let logo: &str = indoc! {r#"
+        let logo = StyledText::new(indoc! {r#"
             ///////////////// /////////////////
             ///////////////// /////////////////
             ///////////////// /////////////////
@@ -189,10 +196,11 @@ fn main() {
             ///////////////// /////////////////
             ///////////////// /////////////////
             ///////////////// /////////////////
-        "#};
+        "#})
+        .bright_blue();
 
         let logo_gap: usize = 4;
-        let logo_width = logo.lines().map(UnicodeWidthStr::width).max().unwrap_or(40);
+        let logo_width = logo.lines().map(|line| UnicodeWidthStr::width(&line.text as &str)).max().unwrap_or(40);
 
         let label_gap: usize = 2;
         let label_width = info
@@ -205,10 +213,10 @@ fn main() {
             let (line, (label, value)) = match paired {
                 EitherOrBoth::Both(line, (label, value)) => (line, (label, value)),
                 EitherOrBoth::Left(line) => (line, (&StyledText::new(""), &StyledText::new(""))),
-                EitherOrBoth::Right((label, value)) => ("", (label, value)),
+                EitherOrBoth::Right((label, value)) => (StyledText::new(""), (label, value)),
             };
-            let logo_pad: usize = if logo_width > UnicodeWidthStr::width(line) {
-                logo_width - UnicodeWidthStr::width(line) + logo_gap
+            let logo_pad: usize = if logo_width > UnicodeWidthStr::width(&line.text as &str) {
+                logo_width - UnicodeWidthStr::width(&line.text as &str) + logo_gap
             } else {
                 logo_gap
             };
@@ -219,7 +227,7 @@ fn main() {
             };
             println!(
                 "{}{}{}{} {} {}",
-                line,
+                line.render(),
                 " ".repeat(logo_pad),
                 label.render(),
                 " ".repeat(label_pad),
