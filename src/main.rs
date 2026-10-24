@@ -3,7 +3,6 @@ use indoc::indoc;
 use itertools::{EitherOrBoth, Itertools};
 use owo_colors::{OwoColorize, Style};
 use sysinfo::{Disks, System};
-use terminal_size::{Height, Width, terminal_size};
 use unicode_width::UnicodeWidthStr;
 
 macro_rules! style_methods {
@@ -95,10 +94,6 @@ struct Args {
 }
 
 fn main() {
-    let (width, height) = terminal_size()
-        .map(|(Width(w), Height(h))| (w, h))
-        .unwrap_or((80, 24));
-
     let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
 
     if sysinfo::IS_SUPPORTED_SYSTEM {
@@ -131,10 +126,6 @@ fn main() {
             .first()
             .map(|c| c.brand())
             .unwrap_or("Unknown CPU");
-
-        println!();
-        println!("{}", "  minimalfetch".bold().cyan());
-        println!();
 
         // println!("  {} {}", "os   :".blue().bold(), os_name.white());
         info.push((
@@ -180,8 +171,6 @@ fn main() {
             StyledText::new("cpu").red().bold(),
             StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage)),
         ));
-
-        println!();
 
         let logo = StyledText::new(indoc! {r#"
             ///////////////// /////////////////
@@ -240,6 +229,7 @@ fn main() {
                 value.render(),
             );
         }
+        println!();
     } else {
         println!("{}", "This OS isn't supported".red());
     }
