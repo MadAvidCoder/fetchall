@@ -1,10 +1,72 @@
 use clap::Parser;
 use indoc::indoc;
 use itertools::{EitherOrBoth, Itertools};
-use owo_colors::OwoColorize;
+use owo_colors::{OwoColorize, Style};
 use sysinfo::{Disks, System};
 use terminal_size::{Height, Width, terminal_size};
 use unicode_width::UnicodeWidthStr;
+
+macro_rules! style_methods {
+    ($($name:ident),* $(,)?) => {
+        $(
+            pub fn $name(mut self) -> Self {
+                self.style = self.style.$name();
+                self
+            }
+        )*
+    };
+}
+
+struct StyledText {
+    text: String,
+    style: Style,
+}
+
+impl StyledText {
+    fn new(text: impl Into<String>) -> Self {
+        StyledText {
+            text: text.into(),
+            style: Style::new(),
+        }
+    }
+
+    style_methods!(
+        black,
+        red,
+        green,
+        yellow,
+        blue,
+        magenta,
+        cyan,
+        white,
+        bright_black,
+        bright_red,
+        bright_green,
+        bright_yellow,
+        bright_blue,
+        bright_magenta,
+        bright_cyan,
+        bright_white,
+        on_black,
+        on_red,
+        on_green,
+        on_yellow,
+        on_blue,
+        on_magenta,
+        on_cyan,
+        on_white,
+        bold,
+        dimmed,
+        italic,
+        underline,
+        strikethrough,
+        reversed,
+    );
+
+    fn render(&self) -> String {
+        self.text.style(self.style).to_string()
+    }
+}
 
 #[derive(Parser)]
 #[command(
@@ -28,7 +90,7 @@ fn main() {
     let os_name = System::name().unwrap_or_else(|| "Unknown".to_string());
 
     if sysinfo::IS_SUPPORTED_SYSTEM {
-        let mut info: Vec<(String, String)> = Vec::new();
+        let mut info: Vec<(StyledText, StyledText)> = Vec::new();
 
         let mut sys = System::new_all();
         let disks = Disks::new_with_refreshed_list();
@@ -63,7 +125,10 @@ fn main() {
         println!();
 
         // println!("  {} {}", "os   :".blue().bold(), os_name.white());
-        info.push(("os".to_string(), os_name.clone()));
+        info.push((
+            StyledText::new("os").blue().bold(),
+            StyledText::new(os_name),
+        ));
 
         // println!(
         //     "  {} {:.2} / {:.2} GB",
@@ -72,8 +137,8 @@ fn main() {
         //     total_mem
         // );
         info.push((
-            "mem".to_string(),
-            format!("{:.2} / {:.2} GB", used_mem, total_mem),
+            StyledText::new("mem").green().bold(),
+            StyledText::new(format!("{:.2} / {:.2} GB", used_mem, total_mem)),
         ));
 
         // println!(
@@ -86,11 +151,11 @@ fn main() {
         //     "GB)".dimmed(),
         // );
         info.push((
-            "disk".to_string(),
-            format!(
+            StyledText::new("disk").yellow().bold(),
+            StyledText::new(format!(
                 "{:.2} / {:.2} GB (free: {:.2} GB)",
                 used_disk, total_disk, free_disk
-            ),
+            )),
         ));
 
         // println!(
@@ -100,8 +165,8 @@ fn main() {
         //     cpu_usage
         // );
         info.push((
-            "cpu".to_string(),
-            format!("{} ({:.1}%)", cpu_name, cpu_usage),
+            StyledText::new("cpu").red().bold(),
+            StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage)),
         ));
 
         println!();
@@ -132,29 +197,34 @@ fn main() {
         let label_gap: usize = 2;
         let label_width = info
             .iter()
-            .map(|(label, _)| UnicodeWidthStr::width(label.as_str()))
+            .map(|(label, _)| UnicodeWidthStr::width(&label.text as &str))
             .max()
             .unwrap_or(10);
 
         for paired in logo.lines().zip_longest(info.iter()) {
             let (line, (label, value)) = match paired {
                 EitherOrBoth::Both(line, (label, value)) => (line, (label, value)),
-                EitherOrBoth::Left(line) => (line, (&"".to_string(), &"".to_string())),
+                EitherOrBoth::Left(line) => (line, (&StyledText::new(""), &StyledText::new(""))),
                 EitherOrBoth::Right((label, value)) => ("", (label, value)),
             };
-            let logo_pad: usize = if logo_width > line.len() {
-                logo_width - line.len() + logo_gap
+            let logo_pad: usize = if logo_width > UnicodeWidthStr::width(line) {
+                logo_width - UnicodeWidthStr::width(line) + logo_gap
             } else {
                 logo_gap
             };
+            let label_pad: usize = if label_width > UnicodeWidthStr::width(&label.text as &str) {
+                label_width - UnicodeWidthStr::width(&label.text as &str) + label_gap - 1
+            } else {
+                label_gap - 1
+            };
             println!(
-                "{}{}{:<label_pad$} {} {}",
+                "{}{}{}{} {} {}",
                 line,
                 " ".repeat(logo_pad),
-                label,
-                if label.is_empty() { " " } else { ":" },
-                value,
-                label_pad = label_width + label_gap - 1,
+                label.render(),
+                " ".repeat(label_pad),
+                if label.text.is_empty() { " " } else { ":" },
+                value.render(),
             );
         }
     } else {
