@@ -9,6 +9,7 @@ use unicode_width::UnicodeWidthStr;
 macro_rules! style_methods {
     ($($name:ident),* $(,)?) => {
         $(
+            #[allow(dead_code)]
             pub fn $name(mut self) -> Self {
                 self.style = self.style.$name();
                 self
@@ -68,6 +69,10 @@ impl StyledText {
             text: line.to_string(),
             style: self.style,
         })
+    }
+
+    fn width(&self) -> usize {
+        UnicodeWidthStr::width(&self.text as &str)
     }
 
     fn render(&self) -> String {
@@ -200,12 +205,12 @@ fn main() {
         .bright_blue();
 
         let logo_gap: usize = 4;
-        let logo_width = logo.lines().map(|line| UnicodeWidthStr::width(&line.text as &str)).max().unwrap_or(40);
+        let logo_width = logo.lines().map(|line| line.width()).max().unwrap_or(40);
 
         let label_gap: usize = 2;
         let label_width = info
             .iter()
-            .map(|(label, _)| UnicodeWidthStr::width(&label.text as &str))
+            .map(|(label, _)| label.width())
             .max()
             .unwrap_or(10);
 
@@ -215,13 +220,13 @@ fn main() {
                 EitherOrBoth::Left(line) => (line, (&StyledText::new(""), &StyledText::new(""))),
                 EitherOrBoth::Right((label, value)) => (StyledText::new(""), (label, value)),
             };
-            let logo_pad: usize = if logo_width > UnicodeWidthStr::width(&line.text as &str) {
-                logo_width - UnicodeWidthStr::width(&line.text as &str) + logo_gap
+            let logo_pad: usize = if logo_width > line.width() {
+                logo_width - line.width() + logo_gap
             } else {
                 logo_gap
             };
-            let label_pad: usize = if label_width > UnicodeWidthStr::width(&label.text as &str) {
-                label_width - UnicodeWidthStr::width(&label.text as &str) + label_gap - 1
+            let label_pad: usize = if label_width > label.width() {
+                label_width - label.width() + label_gap - 1
             } else {
                 label_gap - 1
             };
