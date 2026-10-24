@@ -74,3 +74,9 @@ impl StyledText {
         self.text.style(self.style).to_string()
     }
 }
+
+impl From<&str> for StyledText {
+    fn from(text: &str) -> Self {
+        StyledText::new(text)
+    }
+}

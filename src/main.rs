@@ -5,6 +5,7 @@ mod renderer;
 mod styled_text;
 
 use crate::component::Component;
+use crate::components::git::GitComponent;
 use crate::components::system::SystemComponent;
 use crate::renderer::render;
 use anyhow::Result;
@@ -20,12 +21,20 @@ use clap::Parser;
     author = "MadAvidCoder"
 )]
 struct Args {
-    #[arg(short, long, help = "Show version")]
-    version: bool,
+    #[arg(short, long, help = "Test")]
+    test: bool,
 }
 
 fn main() -> Result<()> {
+    let args = Args::parse();
+    if args.test {
+        println!("Hello, world!");
+        return Ok(());
+    }
+    let git_info = GitComponent.collect()?;
     let system_info = SystemComponent.collect()?;
-    render(&system_info);
+
+    render(&(system_info + git_info));
+
     Ok(())
 }
