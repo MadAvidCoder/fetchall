@@ -8,7 +8,7 @@ mod styled_text;
 use crate::component::Component;
 use crate::components::{
     dev_environment::DevEnvironmentComponent, git::GitComponent, system::SystemComponent,
-user::UserComponent,
+    user::UserComponent,
 };
 use crate::output::ComponentOutput;
 use crate::renderer::render;
@@ -51,11 +51,13 @@ fn main() -> Result<()> {
 
     let info = active_components
         .iter()
-        .map(|component| component.collect())
-        .collect::<Result<Vec<_>>>()?
-        .into_iter()
+        .filter_map(|component| component.collect().ok())
         .reduce(|acc, output| acc + output)
-        .unwrap_or_else(|| output::ComponentOutput { rows: Vec::new() });
+        .unwrap_or_else(|| {
+            UserComponent
+                .collect()
+                .unwrap_or(ComponentOutput { rows: Vec::new() })
+        });
 
     render(&info);
 
