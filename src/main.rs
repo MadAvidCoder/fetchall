@@ -6,9 +6,11 @@ mod renderer;
 mod styled_text;
 
 use crate::component::Component;
-use crate::components::git::GitComponent;
-use crate::components::system::SystemComponent;
-use crate::components::user::UserComponent;
+use crate::components::{
+    dev_environment::DevEnvironmentComponent, git::GitComponent, system::SystemComponent,
+user::UserComponent,
+};
+use crate::output::ComponentOutput;
 use crate::renderer::render;
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
@@ -42,7 +44,7 @@ fn main() -> Result<()> {
     let active_components: Vec<&dyn Component> = match args.profile {
         Profile::Default => vec![&UserComponent, &GitComponent, &SystemComponent],
         Profile::System => vec![&UserComponent, &SystemComponent],
-        Profile::Dev => vec![&UserComponent, &GitComponent],
+        Profile::Dev => vec![&UserComponent, &GitComponent, &DevEnvironmentComponent],
         Profile::Life => vec![&UserComponent],
         Profile::Game => vec![&UserComponent],
     };
