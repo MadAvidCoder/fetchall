@@ -2,7 +2,7 @@ use crate::component::Component;
 use crate::output::{ComponentOutput, OutputRow};
 use crate::styled_text::StyledText;
 use anyhow::Result;
-use git2::{Repository, StatusOptions};
+use git2::{BranchType, Repository, StatusOptions};
 
 pub struct GitComponent;
 
@@ -23,16 +23,43 @@ impl Component for GitComponent {
             }
         };
 
-        let cur_branch: String = repo
-            .head()
-            .ok()
-            .and_then(|h| h.shorthand().ok().map(|s| s.to_string()))
-            .unwrap_or_else(|| "Detatched HEAD".into());
-
+        let root = repo.workdir().unwrap_or_else(|| repo.path());
+        let root_path = root.display();
+        let root_name = root
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("Unknown"))
+            .display();
         output.rows.push(OutputRow::Info {
-            label: StyledText::new("current_branch").cyan().bold(),
-            value: StyledText::new(cur_branch),
+            label: StyledText::new("repo").blue().bold(),
+            value: StyledText::new(format!("{} ({})", root_name, root_path)),
         });
+
+        let head = repo.head().ok();
+
+        let cur_branch = head
+            .as_ref()
+            .and_then(|h| h.shorthand().ok().map(str::to_owned));
+        let cur_branch_text = cur_branch.as_deref().unwrap_or("Detached HEAD");
+        
+        if let Some(cur_branch) = cur_branch.as_deref()
+            && let Ok(branch) = repo.find_branch(cur_branch, BranchType::Local)
+            && let Ok(upstream) = branch.upstream()
+            && let Some(head) = head
+            && let Ok((ahead, behind)) = repo.graph_ahead_behind(
+                head.peel_to_commit()?.id(),
+                upstream.get().peel_to_commit()?.id(),
+            )
+        {
+            output.rows.push(OutputRow::Info {
+                label: StyledText::new("branch").cyan().bold(),
+                value: StyledText::new(format!("{cur_branch_text} ↑{ahead} ↓{behind}")),
+            });
+        } else {
+            output.rows.push(OutputRow::Info {
+                label: StyledText::new("branch").cyan().bold(),
+                value: StyledText::new(cur_branch_text),
+            });
+        }
 
         let statuses = repo.statuses(Some(
             StatusOptions::new()
