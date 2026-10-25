@@ -17,23 +17,33 @@ impl Default for Config {
         profiles.insert(
             "default".to_string(),
             ProfileConfig {
-                components: vec!["system".to_string(), "git".to_string()],
+                components: vec!["user".to_string(), "system".to_string(), "git".to_string()],
             },
         );
         profiles.insert(
             "system".to_string(),
             ProfileConfig {
-                components: vec!["system".to_string()],
+                components: vec!["user".to_string(), "system".to_string()],
             },
         );
         profiles.insert(
             "dev".to_string(),
             ProfileConfig {
-                components: vec!["git".to_string(), "dev_env".to_string()],
+                components: vec!["user".to_string(), "git".to_string(), "dev_env".to_string()],
             },
         );
-        profiles.insert("life".to_string(), ProfileConfig { components: vec![] });
-        profiles.insert("game".to_string(), ProfileConfig { components: vec![] });
+        profiles.insert(
+            "life".to_string(),
+            ProfileConfig {
+                components: vec!["user".to_string()],
+            },
+        );
+        profiles.insert(
+            "game".to_string(),
+            ProfileConfig {
+                components: vec!["user".to_string()],
+            },
+        );
         Config {
             general: GeneralConfig::default(),
             appearance: AppearanceConfig::default(),
@@ -183,7 +193,7 @@ pub struct ProfileConfig {
 impl Default for ProfileConfig {
     fn default() -> Self {
         ProfileConfig {
-            components: vec!["system".to_string(), "git".to_string()],
+            components: vec!["user".to_string(), "system".to_string(), "git".to_string()],
         }
     }
 }

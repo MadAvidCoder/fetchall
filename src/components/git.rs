@@ -34,9 +34,18 @@ impl Component for GitComponent<'_> {
             return Ok(output);
         }
         if *self.show_section_titles {
-            output.rows.push(OutputRow::Section(
-                StyledText::new(self.title()).bold().underline(),
-            ));
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Section(
+                    StyledText::new(self.title())
+                        .apply_style(self.colour)
+                        .bold()
+                        .underline(),
+                ));
+            } else {
+                output.rows.push(OutputRow::Section(
+                    StyledText::new(self.title()).bold().underline(),
+                ));
+            }
         }
 
         if self.config.show_repo

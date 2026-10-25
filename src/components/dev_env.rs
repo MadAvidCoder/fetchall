@@ -33,9 +33,18 @@ impl Component for DevEnvComponent<'_> {
         }
 
         if *self.show_section_titles {
-            output.rows.push(OutputRow::Section(
-                StyledText::new(self.title()).bold().underline(),
-            ));
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Section(
+                    StyledText::new(self.title())
+                        .apply_style(self.colour)
+                        .bold()
+                        .underline(),
+                ));
+            } else {
+                output.rows.push(OutputRow::Section(
+                    StyledText::new(self.title()).bold().underline(),
+                ));
+            }
         }
 
         if self.config.show_project || self.config.show_path || self.config.show_project_tools {

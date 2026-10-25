@@ -36,16 +36,25 @@ impl Component for SystemComponent<'_> {
         if sysinfo::IS_SUPPORTED_SYSTEM {
             let mut info: ComponentOutput = ComponentOutput { rows: Vec::new() };
             if *self.show_section_titles {
-                info.rows.push(OutputRow::Section(
-                    StyledText::new("System Information").bold().underline(),
-                ));
+                if self.colour != "auto" {
+                    info.rows.push(OutputRow::Section(
+                        StyledText::new(self.title())
+                            .apply_style(self.colour)
+                            .bold()
+                            .underline(),
+                    ));
+                } else {
+                    info.rows.push(OutputRow::Section(
+                        StyledText::new(self.title()).bold().underline(),
+                    ));
+                }
             }
 
             if self.config.show_os {
                 if self.colour != "auto" {
                     info.rows.push(OutputRow::Info {
-                        label: StyledText::new("os").blue().bold(),
-                        value: StyledText::new(&os_name).apply_style(self.colour).bold(),
+                        label: StyledText::new("os").apply_style(self.colour).bold(),
+                        value: StyledText::new(&os_name),
                     });
                 } else {
                     info.rows.push(OutputRow::Info {
@@ -66,8 +75,7 @@ impl Component for SystemComponent<'_> {
                 if self.colour != "auto" {
                     info.rows.push(OutputRow::Info {
                         label: StyledText::new("mem").apply_style(self.colour).bold(),
-                        value: StyledText::new(format!("{:.2} / {:.2} GB", used_mem, total_mem))
-                            .apply_style(self.colour),
+                        value: StyledText::new(format!("{:.2} / {:.2} GB", used_mem, total_mem)),
                     });
                 } else {
                     info.rows.push(OutputRow::Info {
@@ -97,8 +105,7 @@ impl Component for SystemComponent<'_> {
                         value: StyledText::new(format!(
                             "{:.2} / {:.2} GB (free: {:.2} GB)",
                             used_disk, total_disk, free_disk
-                        ))
-                        .apply_style(self.colour),
+                        )),
                     });
                 } else {
                     info.rows.push(OutputRow::Info {
@@ -122,8 +129,7 @@ impl Component for SystemComponent<'_> {
                 if self.colour != "auto" {
                     info.rows.push(OutputRow::Info {
                         label: StyledText::new("cpu").apply_style(self.colour).bold(),
-                        value: StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage))
-                            .apply_style(self.colour),
+                        value: StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage)),
                     });
                 } else {
                     info.rows.push(OutputRow::Info {

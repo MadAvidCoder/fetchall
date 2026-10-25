@@ -61,7 +61,7 @@ fn main() -> Result<()> {
         .filter_map(|component| component.collect().ok())
         .reduce(|acc, output| acc + output)
         .unwrap_or_else(|| {
-            UserComponent::new(&config::UserConfig::default())
+            UserComponent::new(&config::UserConfig::default(), "auto", &true)
                 .collect()
                 .unwrap_or(ComponentOutput { rows: Vec::new() })
         });
