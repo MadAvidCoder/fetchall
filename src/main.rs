@@ -2,6 +2,7 @@ mod component;
 mod components;
 mod config;
 mod helpers;
+mod logo;
 mod output;
 mod renderer;
 mod styled_text;
@@ -65,7 +66,8 @@ fn main() -> Result<()> {
                 .unwrap_or(ComponentOutput { rows: Vec::new() })
         });
 
-    render(&info);
+    let logo = logo::get_logo();
+    render(&logo, &info);
 
     Ok(())
 }
