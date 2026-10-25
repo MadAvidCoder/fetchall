@@ -6,9 +6,9 @@ use crate::component::Component;
 use crate::output::{ComponentOutput, OutputRow};
 use crate::styled_text::StyledText;
 
-pub struct DevEnvironmentComponent;
+pub struct DevEnvComponent;
 
-impl Component for DevEnvironmentComponent {
+impl Component for DevEnvComponent {
     fn title(&self) -> &str {
         "Development Environment"
     }

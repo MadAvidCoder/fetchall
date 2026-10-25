@@ -1,5 +1,6 @@
 mod component;
 mod components;
+mod config;
 mod helpers;
 mod output;
 mod renderer;
@@ -7,8 +8,7 @@ mod styled_text;
 
 use crate::component::Component;
 use crate::components::{
-    dev_environment::DevEnvironmentComponent, git::GitComponent, system::SystemComponent,
-    user::UserComponent,
+    dev_env::DevEnvComponent, git::GitComponent, system::SystemComponent, user::UserComponent,
 };
 use crate::output::ComponentOutput;
 use crate::renderer::render;
@@ -44,7 +44,7 @@ fn main() -> Result<()> {
     let active_components: Vec<&dyn Component> = match args.profile {
         Profile::Default => vec![&UserComponent, &SystemComponent, &GitComponent],
         Profile::System => vec![&UserComponent, &SystemComponent],
-        Profile::Dev => vec![&UserComponent, &GitComponent, &DevEnvironmentComponent],
+        Profile::Dev => vec![&UserComponent, &GitComponent, &DevEnvComponent],
         Profile::Life => vec![&UserComponent],
         Profile::Game => vec![&UserComponent],
     };
