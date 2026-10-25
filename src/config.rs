@@ -1,5 +1,7 @@
+use anyhow::Result;
+use directories::ProjectDirs;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 #[derive(Deserialize, Debug)]
 #[serde(default)]
@@ -164,5 +166,28 @@ impl Default for ProfileConfig {
         ProfileConfig {
             components: vec!["system".to_string(), "git".to_string()],
         }
+    }
+}
+
+pub fn load_config(path: Option<&Path>) -> Result<Config> {
+    let config_path = match path {
+        Some(p) => p.to_path_buf(),
+        None => {
+            let project_dirs = ProjectDirs::from("", "", "fetchall")
+                .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
+            project_dirs.config_dir().join("config.toml")
+        }
+    };
+    if config_path.exists() {
+        let mut config = Config::default();
+        let config_content = std::fs::read_to_string(&config_path)?;
+        let config_loaded: Config = toml::from_str(&config_content)?;
+        config.general = config_loaded.general;
+        config.appearance = config_loaded.appearance;
+        config.components = config_loaded.components;
+        config.profiles.extend(config_loaded.profiles);
+        Ok(config)
+    } else {
+        Ok(Config::default())
     }
 }
