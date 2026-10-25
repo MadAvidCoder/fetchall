@@ -60,7 +60,7 @@ impl Component for DevEnvironmentComponent {
                 ],
                 "Node.js" => vec![
                     ("node", "node", &["--version"]),
-                    ("npm", "npm", &["--version"]),
+                    ("npm", "npm.cmd", &["--version"]),
                 ],
                 "Python" => vec![
                     ("python", "python", &["--version"]),
