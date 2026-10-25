@@ -1,9 +1,9 @@
 use anyhow::Result;
 use directories::ProjectDirs;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(default)]
 pub struct Config {
     pub general: GeneralConfig,
@@ -43,7 +43,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(default)]
 pub struct GeneralConfig {
     pub profile: String,
@@ -57,7 +57,7 @@ impl Default for GeneralConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(default)]
 pub struct AppearanceConfig {
     pub logo: String,
@@ -81,7 +81,7 @@ impl Default for AppearanceConfig {
     }
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Serialize, Debug, Default)]
 #[serde(default)]
 pub struct ComponentsConfig {
     pub system: SystemConfig,
@@ -89,7 +89,7 @@ pub struct ComponentsConfig {
     pub git: GitConfig,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(default)]
 pub struct SystemConfig {
     pub enabled: bool,
@@ -111,7 +111,7 @@ impl Default for SystemConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(default)]
 pub struct DevEnvConfig {
     pub enabled: bool,
@@ -133,7 +133,7 @@ impl Default for DevEnvConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(default)]
 pub struct GitConfig {
     pub enabled: bool,
@@ -155,7 +155,7 @@ impl Default for GitConfig {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(default)]
 pub struct ProfileConfig {
     pub components: Vec<String>,
@@ -188,6 +188,12 @@ pub fn load_config(path: Option<&Path>) -> Result<Config> {
         config.profiles.extend(config_loaded.profiles);
         Ok(config)
     } else {
-        Ok(Config::default())
+        let config = Config::default();
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let config_content = toml::to_string_pretty(&config)?;
+        std::fs::write(&config_path, config_content)?;
+        Ok(config)
     }
 }
