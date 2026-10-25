@@ -15,10 +15,10 @@ pub fn get_component_by_name<'a>(
     config: &'a Config,
 ) -> Option<Box<dyn Component + 'a>> {
     match name {
-        "system" => Some(Box::new(SystemComponent::new(&config.components.system))),
-        "git" => Some(Box::new(GitComponent::new(&config.components.git))),
-        "dev_env" => Some(Box::new(DevEnvComponent::new(&config.components.dev_env))),
-        "user" => Some(Box::new(UserComponent::new(&config.components.user))),
+        "system" => Some(Box::new(SystemComponent::new(&config.components.system, &config.appearance.colour, &config.appearance.show_section_titles))),
+        "git" => Some(Box::new(GitComponent::new(&config.components.git, &config.appearance.colour, &config.appearance.show_section_titles))),
+        "dev_env" => Some(Box::new(DevEnvComponent::new(&config.components.dev_env, &config.appearance.colour, &config.appearance.show_section_titles))),
+        "user" => Some(Box::new(UserComponent::new(&config.components.user, &config.appearance.colour, &config.appearance.show_section_titles))),
         _ => None,
     }
 }

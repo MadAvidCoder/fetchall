@@ -8,11 +8,17 @@ use sysinfo::{Disks, System};
 
 pub struct SystemComponent<'a> {
     config: &'a SystemConfig,
+    colour: &'a str,
+    show_section_titles: &'a bool,
 }
 
 impl<'a> SystemComponent<'a> {
-    pub fn new(config: &'a SystemConfig) -> Self {
-        Self { config }
+    pub fn new(config: &'a SystemConfig, colour: &'a str, show_section_titles: &'a bool) -> Self {
+        Self {
+            config,
+            colour,
+            show_section_titles,
+        }
     }
 }
 
@@ -29,15 +35,24 @@ impl Component for SystemComponent<'_> {
 
         if sysinfo::IS_SUPPORTED_SYSTEM {
             let mut info: ComponentOutput = ComponentOutput { rows: Vec::new() };
-            info.rows.push(OutputRow::Section(
-                StyledText::new("System Information").bold().underline(),
-            ));
+            if *self.show_section_titles {
+                info.rows.push(OutputRow::Section(
+                    StyledText::new("System Information").bold().underline(),
+                ));
+            }
 
             if self.config.show_os {
-                info.rows.push(OutputRow::Info {
-                    label: StyledText::new("os").blue().bold(),
-                    value: StyledText::new(os_name),
-                });
+                if self.colour != "auto" {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("os").blue().bold(),
+                        value: StyledText::new(&os_name).apply_style(self.colour).bold(),
+                    });
+                } else {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("os").blue().bold(),
+                        value: StyledText::new(&os_name),
+                    });
+                }
             }
 
             let mut sys = System::new_all();
@@ -47,10 +62,19 @@ impl Component for SystemComponent<'_> {
             if self.config.show_memory {
                 let used_mem = sys.used_memory() as f64 / 1_073_741_824.0;
                 let total_mem = sys.total_memory() as f64 / 1_073_741_824.0;
-                info.rows.push(OutputRow::Info {
-                    label: StyledText::new("mem").green().bold(),
-                    value: StyledText::new(format!("{:.2} / {:.2} GB", used_mem, total_mem)),
-                });
+
+                if self.colour != "auto" {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("mem").apply_style(self.colour).bold(),
+                        value: StyledText::new(format!("{:.2} / {:.2} GB", used_mem, total_mem))
+                            .apply_style(self.colour),
+                    });
+                } else {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("mem").green().bold(),
+                        value: StyledText::new(format!("{:.2} / {:.2} GB", used_mem, total_mem)),
+                    });
+                }
             }
 
             if self.config.show_disk {
@@ -67,13 +91,24 @@ impl Component for SystemComponent<'_> {
                 let total_disk = space as f64 / 1_073_741_824.0;
                 let free_disk = available_space as f64 / 1_073_741_824.0;
 
-                info.rows.push(OutputRow::Info {
-                    label: StyledText::new("disk").yellow().bold(),
-                    value: StyledText::new(format!(
-                        "{:.2} / {:.2} GB (free: {:.2} GB)",
-                        used_disk, total_disk, free_disk
-                    )),
-                });
+                if self.colour != "auto" {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("disk").apply_style(self.colour).bold(),
+                        value: StyledText::new(format!(
+                            "{:.2} / {:.2} GB (free: {:.2} GB)",
+                            used_disk, total_disk, free_disk
+                        ))
+                        .apply_style(self.colour),
+                    });
+                } else {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("disk").yellow().bold(),
+                        value: StyledText::new(format!(
+                            "{:.2} / {:.2} GB (free: {:.2} GB)",
+                            used_disk, total_disk, free_disk
+                        )),
+                    });
+                }
             }
 
             if self.config.show_cpu {
@@ -84,10 +119,18 @@ impl Component for SystemComponent<'_> {
                     .map(|c| c.brand())
                     .unwrap_or("Unknown CPU");
 
-                info.rows.push(OutputRow::Info {
-                    label: StyledText::new("cpu").red().bold(),
-                    value: StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage)),
-                });
+                if self.colour != "auto" {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("cpu").apply_style(self.colour).bold(),
+                        value: StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage))
+                            .apply_style(self.colour),
+                    });
+                } else {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("cpu").red().bold(),
+                        value: StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage)),
+                    });
+                }
             }
 
             info.rows.push(OutputRow::Blank);

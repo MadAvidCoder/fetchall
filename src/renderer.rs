@@ -2,11 +2,8 @@ use crate::output::{ComponentOutput, OutputRow};
 use crate::styled_text::StyledText;
 use itertools::{EitherOrBoth, Itertools};
 
-pub fn render(logo: &StyledText, info: &ComponentOutput) {
-    let logo_gap: usize = 4;
+pub fn render(logo: &StyledText, info: &ComponentOutput, logo_gap: usize, label_gap: usize) {
     let logo_width = logo.lines().map(|line| line.width()).max().unwrap_or(40);
-
-    let label_gap: usize = 2;
     let label_width = info
         .rows
         .iter()
@@ -25,16 +22,16 @@ pub fn render(logo: &StyledText, info: &ComponentOutput) {
             EitherOrBoth::Right(row) => (StyledText::new(""), row),
         };
         let logo_pad: usize = if logo_width > line.width() {
-            logo_width - line.width() + logo_gap
+            logo_width.saturating_sub(line.width()) + logo_gap
         } else {
             logo_gap
         };
         let row_text: String = match row {
             OutputRow::Info { label, value } => {
                 let label_pad: usize = if label_width > label.width() {
-                    label_width - label.width() + label_gap - 1
+                    label_width.saturating_sub(label.width()) + label_gap.saturating_sub(1)
                 } else {
-                    label_gap - 1
+                    label_gap.saturating_sub(1)
                 };
                 format!(
                     "{}{}{} {}",

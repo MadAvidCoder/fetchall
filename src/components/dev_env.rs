@@ -7,11 +7,17 @@ use anyhow::Result;
 
 pub struct DevEnvComponent<'a> {
     config: &'a DevEnvConfig,
+    colour: &'a str,
+    show_section_titles: &'a bool,
 }
 
 impl<'a> DevEnvComponent<'a> {
-    pub fn new(config: &'a DevEnvConfig) -> Self {
-        Self { config }
+    pub fn new(config: &'a DevEnvConfig, colour: &'a str, show_section_titles: &'a bool) -> Self {
+        Self {
+            config,
+            colour,
+            show_section_titles,
+        }
     }
 }
 
@@ -26,9 +32,11 @@ impl Component for DevEnvComponent<'_> {
             return Ok(output);
         }
 
-        output.rows.push(OutputRow::Section(
-            StyledText::new(self.title()).bold().underline(),
-        ));
+        if *self.show_section_titles {
+            output.rows.push(OutputRow::Section(
+                StyledText::new(self.title()).bold().underline(),
+            ));
+        }
 
         if self.config.show_project || self.config.show_path || self.config.show_project_tools {
             let current_dir = std::env::current_dir()?;
@@ -71,17 +79,31 @@ impl Component for DevEnvComponent<'_> {
                     detected.join(", ")
                 };
 
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("project").cyan().bold(),
-                    value: StyledText::new(projects),
-                });
+                if self.colour != "auto" {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("project").apply_style(self.colour).bold(),
+                        value: StyledText::new(projects),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("project").cyan().bold(),
+                        value: StyledText::new(projects),
+                    });
+                }
             }
 
             if self.config.show_path {
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("path").blue().bold(),
-                    value: StyledText::new(project_root.display().to_string()),
-                });
+                if self.colour != "auto" {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("path").apply_style(self.colour).bold(),
+                        value: StyledText::new(project_root.display().to_string()),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("path").blue().bold(),
+                        value: StyledText::new(project_root.display().to_string()),
+                    });
+                }
             }
 
             if self.config.show_project_tools {
@@ -119,10 +141,17 @@ impl Component for DevEnvComponent<'_> {
                         _ => unreachable!(),
                     } {
                         if let Some(version) = execute_command(cmd, args) {
-                            output.rows.push(OutputRow::Info {
-                                label: StyledText::new(label).green().bold(),
-                                value: StyledText::new(version),
-                            });
+                            if self.colour != "auto" {
+                                output.rows.push(OutputRow::Info {
+                                    label: StyledText::new(label).apply_style(self.colour).bold(),
+                                    value: StyledText::new(version),
+                                });
+                            } else {
+                                output.rows.push(OutputRow::Info {
+                                    label: StyledText::new(label).green().bold(),
+                                    value: StyledText::new(version),
+                                });
+                            }
                         }
                     }
                 }
@@ -135,10 +164,17 @@ impl Component for DevEnvComponent<'_> {
                 ("docker", "docker", &["--version"]),
             ] {
                 if let Some(version) = execute_command(cmd, args) {
-                    output.rows.push(OutputRow::Info {
-                        label: StyledText::new(label).green().bold(),
-                        value: StyledText::new(version),
-                    });
+                    if self.colour != "auto" {
+                        output.rows.push(OutputRow::Info {
+                            label: StyledText::new(label).apply_style(self.colour).bold(),
+                            value: StyledText::new(version),
+                        });
+                    } else {
+                        output.rows.push(OutputRow::Info {
+                            label: StyledText::new(label).green().bold(),
+                            value: StyledText::new(version),
+                        });
+                    }
                 }
             }
         }

@@ -67,7 +67,12 @@ fn main() -> Result<()> {
         });
 
     let logo = logo::get_logo(&config.appearance.logo, &config.appearance.logo_colour);
-    render(&logo, &info);
+    render(
+        &logo,
+        &info,
+        config.appearance.logo_gap,
+        config.appearance.label_gap,
+    );
 
     Ok(())
 }

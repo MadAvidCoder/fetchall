@@ -8,11 +8,17 @@ use git2::{BranchType, Repository, Status, StatusOptions};
 
 pub struct GitComponent<'a> {
     config: &'a GitConfig,
+    colour: &'a str,
+    show_section_titles: &'a bool,
 }
 
 impl<'a> GitComponent<'a> {
-    pub fn new(config: &'a GitConfig) -> Self {
-        Self { config }
+    pub fn new(config: &'a GitConfig, colour: &'a str, show_section_titles: &'a bool) -> Self {
+        Self {
+            config,
+            colour,
+            show_section_titles,
+        }
     }
 }
 
@@ -27,10 +33,11 @@ impl Component for GitComponent<'_> {
         if !self.config.enabled {
             return Ok(output);
         }
-
-        output.rows.push(OutputRow::Section(
-            StyledText::new(self.title()).bold().underline(),
-        ));
+        if *self.show_section_titles {
+            output.rows.push(OutputRow::Section(
+                StyledText::new(self.title()).bold().underline(),
+            ));
+        }
 
         if self.config.show_repo
             || self.config.show_branch
@@ -51,10 +58,17 @@ impl Component for GitComponent<'_> {
                     .file_name()
                     .unwrap_or_else(|| std::ffi::OsStr::new("Unknown"))
                     .display();
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("repo").blue().bold(),
-                    value: StyledText::new(format!("{} ({})", root_name, root_path)),
-                });
+                if self.colour != "auto" {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("repo").apply_style(self.colour).bold(),
+                        value: StyledText::new(format!("{} ({})", root_name, root_path)),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("repo").blue().bold(),
+                        value: StyledText::new(format!("{} ({})", root_name, root_path)),
+                    });
+                }
             }
 
             if self.config.show_branch {
@@ -74,15 +88,29 @@ impl Component for GitComponent<'_> {
                         upstream.get().peel_to_commit()?.id(),
                     )
                 {
-                    output.rows.push(OutputRow::Info {
-                        label: StyledText::new("branch").cyan().bold(),
-                        value: StyledText::new(format!("{cur_branch_text} ↑{ahead} ↓{behind}")),
-                    });
+                    if self.colour != "auto" {
+                        output.rows.push(OutputRow::Info {
+                            label: StyledText::new("branch").apply_style(self.colour).bold(),
+                            value: StyledText::new(format!("{cur_branch_text} ↑{ahead} ↓{behind}")),
+                        });
+                    } else {
+                        output.rows.push(OutputRow::Info {
+                            label: StyledText::new("branch").cyan().bold(),
+                            value: StyledText::new(format!("{cur_branch_text} ↑{ahead} ↓{behind}")),
+                        });
+                    }
                 } else {
-                    output.rows.push(OutputRow::Info {
-                        label: StyledText::new("branch").cyan().bold(),
-                        value: StyledText::new(cur_branch_text),
-                    });
+                    if self.colour != "auto" {
+                        output.rows.push(OutputRow::Info {
+                            label: StyledText::new("branch").apply_style(self.colour).bold(),
+                            value: StyledText::new(cur_branch_text),
+                        });
+                    } else {
+                        output.rows.push(OutputRow::Info {
+                            label: StyledText::new("branch").cyan().bold(),
+                            value: StyledText::new(cur_branch_text),
+                        });
+                    }
                 }
             }
             if self.config.show_changes {
@@ -122,24 +150,43 @@ impl Component for GitComponent<'_> {
                         untracked += 1;
                     }
                 }
-
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("changes").yellow().bold(),
-                    value: StyledText::new(if untracked + staged + unstaged == 0 {
-                        "Working tree clean".into()
-                    } else {
-                        [
-                            (staged, "staged"),
-                            (unstaged, "modified"),
-                            (untracked, "untracked"),
-                        ]
-                        .into_iter()
-                        .filter(|(count, _)| *count > 0)
-                        .map(|(count, label)| format!("{} {}", count, label))
-                        .collect::<Vec<String>>()
-                        .join(" | ")
-                    }),
-                });
+                if self.colour != "auto" {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("changes").apply_style(self.colour).bold(),
+                        value: StyledText::new(if untracked + staged + unstaged == 0 {
+                            "Working tree clean".into()
+                        } else {
+                            [
+                                (staged, "staged"),
+                                (unstaged, "modified"),
+                                (untracked, "untracked"),
+                            ]
+                            .into_iter()
+                            .filter(|(count, _)| *count > 0)
+                            .map(|(count, label)| format!("{} {}", count, label))
+                            .collect::<Vec<String>>()
+                            .join(" | ")
+                        }),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("changes").yellow().bold(),
+                        value: StyledText::new(if untracked + staged + unstaged == 0 {
+                            "Working tree clean".into()
+                        } else {
+                            [
+                                (staged, "staged"),
+                                (unstaged, "modified"),
+                                (untracked, "untracked"),
+                            ]
+                            .into_iter()
+                            .filter(|(count, _)| *count > 0)
+                            .map(|(count, label)| format!("{} {}", count, label))
+                            .collect::<Vec<String>>()
+                            .join(" | ")
+                        }),
+                    });
+                }
 
                 if conflicts > 0 {
                     output.rows.push(OutputRow::Info {
@@ -165,10 +212,17 @@ impl Component for GitComponent<'_> {
                     }
                     None => "No commits yet".into(),
                 };
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("latest").magenta().bold(),
-                    value: StyledText::new(commit_value),
-                });
+                if self.colour != "auto" {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("latest").apply_style(self.colour).bold(),
+                        value: StyledText::new(commit_value),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("latest").magenta().bold(),
+                        value: StyledText::new(commit_value),
+                    });
+                }
             }
         }
         output.rows.push(OutputRow::Blank);

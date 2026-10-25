@@ -10,11 +10,17 @@ use std::env;
 
 pub struct UserComponent<'a> {
     config: &'a UserConfig,
+    colour: &'a str,
+    show_section_titles: &'a bool,
 }
 
 impl<'a> UserComponent<'a> {
-    pub fn new(config: &'a UserConfig) -> Self {
-        Self { config }
+    pub fn new(config: &'a UserConfig, colour: &'a str, show_section_titles: &'a bool) -> Self {
+        Self {
+            config,
+            colour,
+            show_section_titles,
+        }
     }
 }
 
@@ -46,11 +52,32 @@ impl Component for UserComponent<'_> {
                         .italic()
                         .bright_red()
                 } else if let Some(username) = username {
-                    StyledText::new(username).bold().italic().bright_red()
+                    if self.colour != "auto" {
+                        StyledText::new(username)
+                            .apply_style(self.colour)
+                            .bold()
+                            .italic()
+                    } else {
+                        StyledText::new(username).bold().italic().bright_red()
+                    }
                 } else if let Some(hostname) = hostname {
-                    StyledText::new(hostname).bold().italic().bright_red()
+                    if self.colour != "auto" {
+                        StyledText::new(hostname)
+                            .apply_style(self.colour)
+                            .bold()
+                            .italic()
+                    } else {
+                        StyledText::new(hostname).bold().italic().bright_red()
+                    }
                 } else {
-                    StyledText::new("Unknown").bold().italic().bright_red()
+                    if self.colour != "auto" {
+                        StyledText::new("Unknown")
+                            .apply_style(self.colour)
+                            .bold()
+                            .italic()
+                    } else {
+                        StyledText::new("Unknown").bold().italic().bright_red()
+                    }
                 },
             )],
         })
