@@ -11,7 +11,7 @@ use std::env;
 pub struct UserComponent<'a> {
     config: &'a UserConfig,
     colour: &'a str,
-    show_section_titles: &'a bool,
+    _show_section_titles: &'a bool,
 }
 
 impl<'a> UserComponent<'a> {
@@ -19,7 +19,7 @@ impl<'a> UserComponent<'a> {
         Self {
             config,
             colour,
-            show_section_titles,
+            _show_section_titles: show_section_titles,
         }
     }
 }
