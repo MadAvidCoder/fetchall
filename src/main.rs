@@ -6,10 +6,8 @@ mod output;
 mod renderer;
 mod styled_text;
 
-use crate::component::Component;
-use crate::components::{
-    dev_env::DevEnvComponent, git::GitComponent, system::SystemComponent, user::UserComponent,
-};
+use crate::component::{Component, get_component_by_name};
+use crate::components::user::UserComponent;
 use crate::output::ComponentOutput;
 use crate::renderer::render;
 use anyhow::Result;
@@ -51,18 +49,10 @@ fn main() -> Result<()> {
         )
     })?;
 
-    let active_components: Vec<&dyn Component> = profile
+    let active_components: Vec<Box<dyn Component>> = profile
         .components
         .iter()
-        .filter_map(|component_name| match component_name.as_str() {
-            "system" => Some(&SystemComponent as &dyn Component),
-            "git" => Some(&GitComponent as &dyn Component),
-            "dev_env" => Some(&DevEnvComponent as &dyn Component),
-            _ => {
-                eprintln!("Warning: Unknown component '{}'", component_name);
-                None
-            }
-        })
+        .filter_map(|component_name| get_component_by_name(component_name, &config))
         .collect();
 
     let info = active_components
@@ -70,7 +60,7 @@ fn main() -> Result<()> {
         .filter_map(|component| component.collect().ok())
         .reduce(|acc, output| acc + output)
         .unwrap_or_else(|| {
-            UserComponent
+            UserComponent::new(&config::UserConfig::default())
                 .collect()
                 .unwrap_or(ComponentOutput { rows: Vec::new() })
         });

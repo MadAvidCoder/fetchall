@@ -1,3 +1,5 @@
+use std::process::Command;
+
 use chrono::{DateTime, Utc};
 
 pub fn format_relative_time(epoch_seconds: i64) -> String {
@@ -33,4 +35,22 @@ pub fn format_relative_time(epoch_seconds: i64) -> String {
     } else {
         format!("{}y ago", years)
     }
+}
+
+pub fn execute_command(command: &str, args: &[&str]) -> Option<String> {
+    let output = Command::new(command).args(args).output().ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let text = if !stdout.trim().is_empty() {
+        stdout.trim()
+    } else {
+        stderr.trim()
+    };
+
+    Some(text.lines().next()?.trim().to_string())
 }

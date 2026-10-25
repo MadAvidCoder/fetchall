@@ -87,6 +87,25 @@ pub struct ComponentsConfig {
     pub system: SystemConfig,
     pub dev_env: DevEnvConfig,
     pub git: GitConfig,
+    pub user: UserConfig,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(default)]
+pub struct UserConfig {
+    pub enabled: bool,
+    pub show_user: bool,
+    pub show_hostname: bool,
+}
+
+impl Default for UserConfig {
+    fn default() -> Self {
+        UserConfig {
+            enabled: true,
+            show_user: true,
+            show_hostname: true,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
