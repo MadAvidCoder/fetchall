@@ -34,20 +34,36 @@ enum Profile {
     author = "MadAvidCoder"
 )]
 struct Args {
-    #[arg(long, value_enum, default_value_t = Profile::Default, help = "The profile to use")]
-    profile: Profile,
+    #[arg(long, value_name = "NAME", help = "The profile to use")]
+    profile: Option<String>,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let config = config::load_config(None)?;
 
-    let active_components: Vec<&dyn Component> = match args.profile {
-        Profile::Default => vec![&UserComponent, &SystemComponent, &GitComponent],
-        Profile::System => vec![&UserComponent, &SystemComponent],
-        Profile::Dev => vec![&UserComponent, &GitComponent, &DevEnvComponent],
-        Profile::Life => vec![&UserComponent],
-        Profile::Game => vec![&UserComponent],
-    };
+    let profile_name = args.profile.as_deref().unwrap_or(&config.general.profile);
+    let profile = config.profiles.get(profile_name).ok_or_else(|| {
+        anyhow::anyhow!(
+            "Unknown profile '{}'. Available profiles: {:?}",
+            profile_name,
+            config.profiles.keys()
+        )
+    })?;
+
+    let active_components: Vec<&dyn Component> = profile
+        .components
+        .iter()
+        .filter_map(|component_name| match component_name.as_str() {
+            "system" => Some(&SystemComponent as &dyn Component),
+            "git" => Some(&GitComponent as &dyn Component),
+            "dev_env" => Some(&DevEnvComponent as &dyn Component),
+            _ => {
+                eprintln!("Warning: Unknown component '{}'", component_name);
+                None
+            }
+        })
+        .collect();
 
     let info = active_components
         .iter()
