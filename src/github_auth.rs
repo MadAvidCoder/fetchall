@@ -104,3 +104,56 @@ pub fn login() -> Result<()> {
         }
     }
 }
+
+pub fn username() -> Result<String> {
+    let entry = keyring::Entry::new("fetchall", "github-token")
+        .context("Failed to access OS credential store")?;
+    let token = entry
+        .get_password()
+        .context("No saved github token. Please run `fetchall auth github` first")?
+        .to_string();
+    let token = token.trim().trim_matches('"');
+
+    let client = Client::builder().user_agent("fetchall").build()?;
+    let user = client
+        .get("https://api.github.com/user")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json")
+        .send()?
+        .error_for_status()
+        .context("Failed to get GitHub user info. Your token may have expired.")?
+        .json::<serde_json::Value>()
+        .context("Failed to get GitHub user info")?;
+
+    Ok(user
+        .get("login")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| anyhow::anyhow!("Failed to get GitHub username"))?
+        .to_string())
+}
+
+pub fn get_client() -> Result<Client> {
+    Ok(Client::builder().user_agent("fetchall").build()?)
+}
+
+pub fn make_request_with_token(
+    req: reqwest::blocking::RequestBuilder,
+) -> Result<serde_json::Value> {
+    let entry = keyring::Entry::new("fetchall", "github-token")
+        .context("Failed to access OS credential")?;
+    let token = entry
+        .get_password()
+        .context("No saved github token. Please run `fetchall auth github` first")?
+        .to_string();
+    let token = token.trim().trim_matches('"');
+
+    let req = req
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json");
+
+    req.send()?
+        .error_for_status()
+        .context("Failed to make request. Your token may have expired.")?
+        .json::<serde_json::Value>()
+        .context("Failed to parse response")
+}
