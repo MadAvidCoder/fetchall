@@ -1,13 +1,44 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct Config {
     pub general: GeneralConfig,
     pub appearance: AppearanceConfig,
     pub components: ComponentsConfig,
     pub profiles: HashMap<String, ProfileConfig>,
+}
+impl Default for Config {
+    fn default() -> Self {
+        let mut profiles = HashMap::new();
+        profiles.insert(
+            "default".to_string(),
+            ProfileConfig {
+                components: vec!["system".to_string(), "git".to_string()],
+            },
+        );
+        profiles.insert(
+            "system".to_string(),
+            ProfileConfig {
+                components: vec!["system".to_string()],
+            },
+        );
+        profiles.insert(
+            "dev".to_string(),
+            ProfileConfig {
+                components: vec!["git".to_string(), "dev_env".to_string()],
+            },
+        );
+        profiles.insert("life".to_string(), ProfileConfig { components: vec![] });
+        profiles.insert("game".to_string(), ProfileConfig { components: vec![] });
+        Config {
+            general: GeneralConfig::default(),
+            appearance: AppearanceConfig::default(),
+            components: ComponentsConfig::default(),
+            profiles,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug)]
