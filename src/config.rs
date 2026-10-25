@@ -98,6 +98,18 @@ pub struct ComponentsConfig {
     pub dev_env: DevEnvConfig,
     pub git: GitConfig,
     pub user: UserConfig,
+    pub github: GithubConfig,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(default)]
+pub struct GithubConfig {
+    pub enabled: bool,
+}
+impl Default for GithubConfig {
+    fn default() -> Self {
+        GithubConfig { enabled: true }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]

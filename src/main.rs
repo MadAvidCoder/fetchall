@@ -1,6 +1,7 @@
 mod component;
 mod components;
 mod config;
+mod github_auth;
 mod helpers;
 mod logo;
 mod output;
@@ -23,6 +24,23 @@ enum Profile {
     Game,
 }
 
+#[derive(Debug, clap::Subcommand)]
+enum Commands {
+    Auth {
+        #[command(subcommand, help = "The API to authenticate")]
+        action: AuthAction,
+        #[arg(long, help = "Check authentication status")]
+        status: bool,
+        #[arg(long, help = "Revoke authentication")]
+        revoke: bool,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum AuthAction {
+    Github,
+}
+
 #[derive(Parser)]
 #[command(
     name="fetchall",
@@ -35,10 +53,26 @@ enum Profile {
 struct Args {
     #[arg(long, value_name = "NAME", help = "The profile to use")]
     profile: Option<String>,
+    #[command(subcommand, help = "Manage API authentication")]
+    command: Option<Commands>,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
+
+    if let Some(command) = args.command {
+        match command {
+            Commands::Auth {
+                action: AuthAction::Github,
+                status: _,
+                revoke: _,
+            } => {
+                github_auth::login()?;
+                return Ok(());
+            }
+        }
+    }
+
     let config = config::load_config(None)?;
 
     let profile_name = args.profile.as_deref().unwrap_or(&config.general.profile);
