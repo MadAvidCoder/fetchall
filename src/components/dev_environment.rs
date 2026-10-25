@@ -32,9 +32,23 @@ impl Component for DevEnvironmentComponent {
             ("CMakeLists.txt", "C / C++"),
         ];
 
+        let project_root = current_dir
+            .ancestors()
+            .find_map(|dir| {
+                info_files
+                    .iter()
+                    .any(|(file, _)| dir.join(file).is_file())
+                    .then(|| dir.to_path_buf())
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No recognized project files found in the current directory or its ancestors"
+                )
+            })?;
+
         let detected: Vec<&str> = info_files
             .iter()
-            .filter(|(file, _)| current_dir.join(file).is_file())
+            .filter(|(file, _)| project_root.join(file).is_file())
             .map(|(_, lang)| *lang)
             .collect();
 
@@ -49,7 +63,7 @@ impl Component for DevEnvironmentComponent {
         });
         output.rows.push(OutputRow::Info {
             label: StyledText::new("path").blue().bold(),
-            value: StyledText::new(current_dir.display().to_string()),
+            value: StyledText::new(project_root.display().to_string()),
         });
 
         for lang in detected {
