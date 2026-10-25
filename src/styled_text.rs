@@ -12,6 +12,19 @@ macro_rules! style_methods {
         )*
     };
 }
+macro_rules! define_colour_parser {
+    ($($colour:ident),* $(,)?) => {
+        pub fn apply_style(mut self, colour: &str) -> Self {
+            match colour.to_lowercase().as_str() {
+                $(
+                    stringify!($colour) => self.style = self.style.$colour(),
+                )*
+                _ => {}
+            }
+            self
+        }
+    };
+}
 
 pub struct StyledText {
     pub text: String,
@@ -27,6 +40,39 @@ impl StyledText {
     }
 
     style_methods!(
+        black,
+        red,
+        green,
+        yellow,
+        blue,
+        magenta,
+        cyan,
+        white,
+        bright_black,
+        bright_red,
+        bright_green,
+        bright_yellow,
+        bright_blue,
+        bright_magenta,
+        bright_cyan,
+        bright_white,
+        on_black,
+        on_red,
+        on_green,
+        on_yellow,
+        on_blue,
+        on_magenta,
+        on_cyan,
+        on_white,
+        bold,
+        dimmed,
+        italic,
+        underline,
+        strikethrough,
+        reversed,
+    );
+
+    define_colour_parser!(
         black,
         red,
         green,

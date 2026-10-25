@@ -66,7 +66,7 @@ fn main() -> Result<()> {
                 .unwrap_or(ComponentOutput { rows: Vec::new() })
         });
 
-    let logo = logo::get_logo();
+    let logo = logo::get_logo(&config.appearance.logo, &config.appearance.logo_colour);
     render(&logo, &info);
 
     Ok(())

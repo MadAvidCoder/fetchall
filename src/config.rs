@@ -61,8 +61,8 @@ impl Default for GeneralConfig {
 #[serde(default)]
 pub struct AppearanceConfig {
     pub logo: String,
-    pub logo_color: String,
-    pub color: String,
+    pub logo_colour: String,
+    pub colour: String,
     pub show_section_titles: bool,
     pub logo_gap: usize,
     pub label_gap: usize,
@@ -72,8 +72,8 @@ impl Default for AppearanceConfig {
     fn default() -> Self {
         AppearanceConfig {
             logo: "auto".to_string(),
-            logo_color: "auto".to_string(),
-            color: "auto".to_string(),
+            logo_colour: "auto".to_string(),
+            colour: "auto".to_string(),
             show_section_titles: true,
             logo_gap: 4,
             label_gap: 2,
