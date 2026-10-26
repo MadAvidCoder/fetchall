@@ -234,7 +234,7 @@ impl Component for GithubProfileComponent<'_> {
             week.to_string()
         };
         let all = if all >= 1000 {
-            format!("{}k", all as f64 / 1000.0)
+            format!("{:.2}k", all as f64 / 1000.0)
                 .trim_end_matches("0")
                 .trim_end_matches(".")
                 .to_string()
