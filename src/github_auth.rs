@@ -138,7 +138,7 @@ pub fn get_client() -> Result<Client> {
 
 pub fn make_request_with_token(
     req: reqwest::blocking::RequestBuilder,
-) -> Result<serde_json::Value> {
+) -> Result<reqwest::blocking::Response> {
     let entry = keyring::Entry::new("fetchall", "github-token")
         .context("Failed to access OS credential")?;
     let token = entry
@@ -151,9 +151,8 @@ pub fn make_request_with_token(
         .header("Authorization", format!("Bearer {}", token))
         .header("Accept", "application/vnd.github+json");
 
-    req.send()?
+    Ok(req
+        .send()?
         .error_for_status()
-        .context("Failed to make request. Your token may have expired.")?
-        .json::<serde_json::Value>()
-        .context("Failed to parse response")
+        .context("Failed to make request. Your token may have expired.")?)
 }
