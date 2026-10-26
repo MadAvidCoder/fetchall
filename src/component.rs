@@ -30,11 +30,20 @@ pub fn get_component_by_name<'a>(
             &config.appearance.colour,
             &config.appearance.show_section_titles,
         ))),
-        "github" => Some(Box::new(crate::components::github::GithubComponent::new(
-            &config.components.github,
-            &config.appearance.colour,
-            &config.appearance.show_section_titles,
-        ))),
+        "github_repo" => Some(Box::new(
+            crate::components::github_repo::GithubRepoComponent::new(
+                &config.components.github_repo,
+                &config.appearance.colour,
+                &config.appearance.show_section_titles,
+            ),
+        )),
+        "github_profile" => Some(Box::new(
+            crate::components::github_profile::GithubProfileComponent::new(
+                &config.components.github_profile,
+                &config.appearance.colour,
+                &config.appearance.show_section_titles,
+            ),
+        )),
         "user" => Some(Box::new(UserComponent::new(
             &config.components.user,
             &config.appearance.colour,

@@ -151,8 +151,8 @@ pub fn make_request_with_token(
         .header("Authorization", format!("Bearer {}", token))
         .header("Accept", "application/vnd.github+json");
 
-    Ok(req
+    req
         .send()?
         .error_for_status()
-        .context("Failed to make request. Your token may have expired.")?)
+        .context("Failed to make request. Your token may have expired.")
 }

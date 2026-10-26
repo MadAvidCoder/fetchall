@@ -1,5 +1,5 @@
 use crate::component::Component;
-use crate::config::GithubConfig;
+use crate::config::GithubRepoConfig;
 use crate::github_auth;
 use crate::output::{ComponentOutput, OutputRow};
 use crate::styled_text::StyledText;
@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use git2::Repository;
 use reqwest::header::LINK;
 
-fn fetch_all_pages(
+pub fn fetch_all_pages(
     url: &str,
     query: &[(&str, &str)],
     field: Option<&str>,
@@ -65,14 +65,18 @@ fn fetch_all_pages(
     Ok(results)
 }
 
-pub struct GithubComponent<'a> {
-    config: &'a GithubConfig,
+pub struct GithubRepoComponent<'a> {
+    config: &'a GithubRepoConfig,
     colour: &'a str,
     show_section_titles: &'a bool,
 }
 
-impl<'a> GithubComponent<'a> {
-    pub fn new(config: &'a GithubConfig, colour: &'a str, show_section_titles: &'a bool) -> Self {
+impl<'a> GithubRepoComponent<'a> {
+    pub fn new(
+        config: &'a GithubRepoConfig,
+        colour: &'a str,
+        show_section_titles: &'a bool,
+    ) -> Self {
         Self {
             config,
             colour,
@@ -81,9 +85,9 @@ impl<'a> GithubComponent<'a> {
     }
 }
 
-impl Component for GithubComponent<'_> {
+impl Component for GithubRepoComponent<'_> {
     fn title(&self) -> &str {
-        "GitHub"
+        "GitHub Repo Info"
     }
     fn collect(&self) -> Result<ComponentOutput> {
         let mut output = ComponentOutput { rows: Vec::new() };
@@ -128,20 +132,6 @@ impl Component for GithubComponent<'_> {
             Ok(name) => name,
             Err(e) => return Err(anyhow::anyhow!("Failed to retrieve GitHub username: {}", e)),
         };
-
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("username".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!("@{}", username)),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("username".to_string()).yellow().bold(),
-                value: StyledText::new(format!("@{}", username)),
-            });
-        }
 
         let (owner, repo) = if url.contains("git@github.com") {
             url.split(":")

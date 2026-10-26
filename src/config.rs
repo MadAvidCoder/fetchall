@@ -29,7 +29,13 @@ impl Default for Config {
         profiles.insert(
             "dev".to_string(),
             ProfileConfig {
-                components: vec!["user".to_string(), "git".to_string(), "dev_env".to_string()],
+                components: vec![
+                    "user".to_string(),
+                    "git".to_string(),
+                    "dev_env".to_string(),
+                    "github_repo".to_string(),
+                    "github_profile".to_string(),
+                ],
             },
         );
         profiles.insert(
@@ -98,17 +104,29 @@ pub struct ComponentsConfig {
     pub dev_env: DevEnvConfig,
     pub git: GitConfig,
     pub user: UserConfig,
-    pub github: GithubConfig,
+    pub github_repo: GithubRepoConfig,
+    pub github_profile: GithubProfileConfig,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(default)]
-pub struct GithubConfig {
+pub struct GithubRepoConfig {
     pub enabled: bool,
 }
-impl Default for GithubConfig {
+impl Default for GithubRepoConfig {
     fn default() -> Self {
-        GithubConfig { enabled: true }
+        GithubRepoConfig { enabled: true }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(default)]
+pub struct GithubProfileConfig {
+    pub enabled: bool,
+}
+impl Default for GithubProfileConfig {
+    fn default() -> Self {
+        GithubProfileConfig { enabled: true }
     }
 }
 
