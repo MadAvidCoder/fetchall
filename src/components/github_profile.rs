@@ -222,6 +222,25 @@ impl Component for GithubProfileComponent<'_> {
         .get("total_count")
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
+
+        let day = if day >= 1000 {
+            format!("{}k", day / 1000)
+        } else {
+            day.to_string()
+        };
+        let week = if week >= 1000 {
+            format!("{}k", week / 1000)
+        } else {
+            week.to_string()
+        };
+        let all = if all >= 1000 {
+            format!("{}k", all as f64 / 1000.0)
+                .trim_end_matches("0")
+                .trim_end_matches(".")
+                .to_string()
+        } else {
+            all.to_string()
+        };
         if self.colour != "auto" {
             output.rows.push(OutputRow::Info {
                 label: StyledText::new("commits".to_string())
