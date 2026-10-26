@@ -127,6 +127,55 @@ impl Component for GithubComponent<'_> {
         )
         .context("Failed to fetch repository information from GitHub")?;
 
+        let pulls = github_auth::make_request_with_token(
+            github_auth::get_client()?
+                .get(format!(
+                    "https://api.github.com/repos/{}/{}/pulls",
+                    owner, repo
+                ))
+                .form(&[("state", "open"), ("per_page", "100")]),
+        )
+        .context("Failed to fetch pull requests information from GitHub")?;
+        let open_pulls = pulls.len();
+        let awaiting_review = pulls
+            .iter()
+            .filter(|pull| {
+                pull.get("requested_reviewers")
+                    .and_then(|rev| rev.as_array())
+                    .is_some_and(|reviewers| {
+                        reviewers
+                            .iter()
+                            .any(|rev| rev.get("login").and_then(|v| v.as_str() == Some(username)))
+                    })
+            })
+            .count();
+        let issues = github_auth::make_request_with_token(
+            github_auth::get_client()?
+                .get(format!(
+                    "https://api.github.com/repos/{}/{}/issues",
+                    owner, repo
+                ))
+                .form(&[("state", "open"), ("per_page", "100")]),
+        )
+        .context("Failed to fetch pull requests information from GitHub")?;
+        let open_issues = issues.len();
+        let awaiting_review = issues
+            .iter()
+            .filter(|pull| {
+                pull.get("assignees")
+                    .and_then(|rev| rev.as_array())
+                    .is_some_and(|reviewers| {
+                        reviewers
+                            .iter()
+                            .any(|rev| rev.get("login").and_then(|v| v.as_str() == Some(username)))
+                    })
+            })
+            .count();
+        let actions = github_auth::make_request_with_token(
+            github_auth::get_client()?
+            .get(format!("https://api.github.com/repos/{}/{}/commits/{}"))
+        )
+
         if self.colour != "auto" {
             output.rows.push(OutputRow::Info {
                 label: StyledText::new("stars".to_string())
@@ -201,6 +250,25 @@ impl Component for GithubComponent<'_> {
                         .unwrap_or(0)
                 )),
             });
+        }
+        if self.colour != "auto" {
+            output.rows.push(OutputRow::Info {
+                label: StyledText::new("prs".to_string())
+                    .apply_style(self::colour)
+                    .bold(),
+                value: StyledText::new(format!(
+                    "{} open | {} awaiting review",
+                    open_pulls, awaiting_review
+                )),
+            })
+        } else {
+            output.rows.push(OutputRow::Info {
+                label: StyledText::new("prs".to_string()).magenta().bold(),
+                value: StyledText::new(format!(
+                    "{} open | {} awaiting review",
+                    open_pulls, awaiting_review
+                )),
+            })
         }
 
         Ok(output)
