@@ -1,5 +1,6 @@
 use crate::components::{
-    dev_env::DevEnvComponent, git::GitComponent, system::SystemComponent, user::UserComponent,
+    dev_env::DevEnvComponent, git::GitComponent, hackatime::HackatimeComponent,
+    system::SystemComponent, user::UserComponent,
 };
 use crate::config::Config;
 use crate::output::ComponentOutput;
@@ -46,6 +47,11 @@ pub fn get_component_by_name<'a>(
         )),
         "user" => Some(Box::new(UserComponent::new(
             &config.components.user,
+            &config.appearance.colour,
+            &config.appearance.show_section_titles,
+        ))),
+        "hackatime" => Some(Box::new(HackatimeComponent::new(
+            &config.components.hackatime,
             &config.appearance.colour,
             &config.appearance.show_section_titles,
         ))),

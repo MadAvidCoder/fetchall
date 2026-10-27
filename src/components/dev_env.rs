@@ -59,6 +59,7 @@ impl Component for DevEnvComponent<'_> {
                 ("pom.xml", "Java / Maven"),
                 ("build.gradle", "Java / Gradle"),
                 ("CMakeLists.txt", "C / C++"),
+                ("project.godot", "Godot"),
             ];
 
             let project_root = current_dir
@@ -147,6 +148,7 @@ impl Component for DevEnvComponent<'_> {
                             ("gcc", "gcc", &["--version"]),
                             ("g++", "g++", &["--version"]),
                         ],
+                        "Godot" => vec![("godot", "godot", &["--version"])],
                         _ => unreachable!(),
                     } {
                         if let Some(version) = execute_command(cmd, args) {

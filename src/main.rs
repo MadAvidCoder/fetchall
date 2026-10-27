@@ -40,6 +40,7 @@ enum Commands {
 #[derive(Debug, clap::Subcommand)]
 enum AuthAction {
     Github,
+    Hackatime,
 }
 
 #[derive(Parser)]
@@ -69,6 +70,14 @@ fn main() -> Result<()> {
                 revoke: _,
             } => {
                 github_auth::login()?;
+                return Ok(());
+            }
+            Commands::Auth {
+                action: AuthAction::Hackatime,
+                status: _,
+                revoke: _,
+            } => {
+                hackatime_auth::login()?;
                 return Ok(());
             }
         }

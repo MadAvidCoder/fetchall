@@ -41,7 +41,7 @@ impl Default for Config {
         profiles.insert(
             "life".to_string(),
             ProfileConfig {
-                components: vec!["user".to_string()],
+                components: vec!["user".to_string(), "hackatime".to_string()],
             },
         );
         profiles.insert(
