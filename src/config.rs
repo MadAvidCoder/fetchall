@@ -136,12 +136,12 @@ impl Default for GithubRepoConfig {
     fn default() -> Self {
         GithubRepoConfig {
             enabled: true,
-            show_url: true,
+            show_url: false,
             show_repo: true,
             show_prs: true,
             show_actions: true,
             show_issues: true,
-            show_forks: true,
+            show_forks: false,
             show_stars: true,
         }
     }

@@ -112,9 +112,9 @@ impl Component for GithubRepoComponent<'_> {
 
         let repo = Repository::discover(".")?;
 
+        let remote = repo.find_remote("origin")?;
+        let url = remote.url().unwrap_or("Unknown URL");
         if self.config.show_url {
-            let remote = repo.find_remote("origin")?;
-            let url = remote.url().unwrap_or("Unknown URL");
             if self.colour != "auto" {
                 output.rows.push(OutputRow::Info {
                     label: StyledText::new("url".to_string())
@@ -237,6 +237,29 @@ impl Component for GithubRepoComponent<'_> {
             }
         }
         if self.config.show_issues {
+            let issues = fetch_all_pages(
+                &format!("https://api.github.com/repos/{}/{}/issues", owner, repo),
+                &[("state", "open")],
+                None,
+            )
+            .context("Failed to fetch pull requests information from GitHub")?;
+            let open_issues = issues.len();
+            let issues_waiting = issues
+                .iter()
+                .filter(|pull| {
+                    pull.get("assignees")
+                        .and_then(|rev| rev.as_array())
+                        .is_some_and(|reviewers| {
+                            reviewers.iter().any(|rev| {
+                                rev.get("login")
+                                    .unwrap_or(&serde_json::Value::String("".into()))
+                                    .as_str()
+                                    .unwrap_or("")
+                                    == username.as_str()
+                            })
+                        })
+                })
+                .count();
             if self.colour != "auto" {
                 output.rows.push(OutputRow::Info {
                     label: StyledText::new("issues".to_string())
@@ -282,29 +305,7 @@ impl Component for GithubRepoComponent<'_> {
                         })
                 })
                 .count();
-            let issues = fetch_all_pages(
-                &format!("https://api.github.com/repos/{}/{}/issues", owner, repo),
-                &[("state", "open")],
-                None,
-            )
-            .context("Failed to fetch pull requests information from GitHub")?;
-            let open_issues = issues.len();
-            let issues_waiting = issues
-                .iter()
-                .filter(|pull| {
-                    pull.get("assignees")
-                        .and_then(|rev| rev.as_array())
-                        .is_some_and(|reviewers| {
-                            reviewers.iter().any(|rev| {
-                                rev.get("login")
-                                    .unwrap_or(&serde_json::Value::String("".into()))
-                                    .as_str()
-                                    .unwrap_or("")
-                                    == username.as_str()
-                            })
-                        })
-                })
-                .count();
+
             if self.colour != "auto" {
                 output.rows.push(OutputRow::Info {
                     label: StyledText::new("prs".to_string())
