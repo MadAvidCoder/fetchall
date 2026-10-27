@@ -111,21 +111,23 @@ impl Component for GithubRepoComponent<'_> {
         }
 
         let repo = Repository::discover(".")?;
-        let remote = repo.find_remote("origin")?;
-        let url = remote.url().unwrap_or("Unknown URL");
 
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("url".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(url.to_string()),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("url".to_string()).yellow().bold(),
-                value: StyledText::new(url.to_string()),
-            });
+        if self.config.show_url {
+            let remote = repo.find_remote("origin")?;
+            let url = remote.url().unwrap_or("Unknown URL");
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("url".to_string())
+                        .apply_style(self.colour)
+                        .bold(),
+                    value: StyledText::new(url.to_string()),
+                });
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("url".to_string()).yellow().bold(),
+                    value: StyledText::new(url.to_string()),
+                });
+            }
         }
 
         let username = match github_auth::username() {
@@ -156,18 +158,20 @@ impl Component for GithubRepoComponent<'_> {
             return Err(anyhow::anyhow!("Failed to parse GitHub URL"));
         };
 
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("name".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!("{}/{}", username, repo)),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("name".to_string()).bright_blue().bold(),
-                value: StyledText::new(format!("{}/{}", username, repo)),
-            });
+        if self.config.show_repo {
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("name".to_string())
+                        .apply_style(self.colour)
+                        .bold(),
+                    value: StyledText::new(format!("{}/{}", username, repo)),
+                });
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("name".to_string()).bright_blue().bold(),
+                    value: StyledText::new(format!("{}/{}", username, repo)),
+                });
+            }
         }
 
         let repo_info = github_auth::make_request_with_token(
@@ -178,261 +182,275 @@ impl Component for GithubRepoComponent<'_> {
         .json::<serde_json::Value>()
         .context("Failed to parse JSON")?;
 
-        let pulls = fetch_all_pages(
-            &format!("https://api.github.com/repos/{}/{}/pulls", owner, repo),
-            &[("state", "open")],
-            None,
-        )
-        .context("Failed to fetch pull requests information from GitHub")?;
-        let open_pulls = pulls.len();
-        let prs_waiting = pulls
-            .iter()
-            .filter(|pull| {
-                pull.get("requested_reviewers")
-                    .and_then(|rev| rev.as_array())
-                    .is_some_and(|reviewers| {
-                        reviewers.iter().any(|rev| {
-                            rev.get("login")
-                                .unwrap_or(&serde_json::Value::String("".into()))
-                                .as_str()
-                                .unwrap_or("")
-                                == username.as_str()
-                        })
-                    })
-            })
-            .count();
-        let issues = fetch_all_pages(
-            &format!("https://api.github.com/repos/{}/{}/issues", owner, repo),
-            &[("state", "open")],
-            None,
-        )
-        .context("Failed to fetch pull requests information from GitHub")?;
-        let open_issues = issues.len();
-        let issues_waiting = issues
-            .iter()
-            .filter(|pull| {
-                pull.get("assignees")
-                    .and_then(|rev| rev.as_array())
-                    .is_some_and(|reviewers| {
-                        reviewers.iter().any(|rev| {
-                            rev.get("login")
-                                .unwrap_or(&serde_json::Value::String("".into()))
-                                .as_str()
-                                .unwrap_or("")
-                                == username.as_str()
-                        })
-                    })
-            })
-            .count();
-        let latest_sha = github_auth::make_request_with_token(
-            github_auth::get_client()?
-                .get(format!(
-                    "https://api.github.com/repos/{}/{}/commits",
-                    owner, repo
-                ))
-                .query(&[("per_page", "1")]),
-        )
-        .context("Failed to fetch latest commit information from GitHub")?
-        .json::<serde_json::Value>()
-        .context("Failed to fetch latest commit information from GitHub")?
-        .as_array()
-        .and_then(|arr| arr.first())
-        .and_then(|commit| commit.get("sha"))
-        .and_then(|sha| sha.as_str())
-        .unwrap_or("Unknown")
-        .to_string();
-
-        let actions = fetch_all_pages(
-            &format!(
-                "https://api.github.com/repos/{}/{}/commits/{}/check-runs",
-                owner, repo, latest_sha
-            ),
-            &[],
-            Some("check_runs"),
-        )
-        .context("Failed to fetch GitHub Actions information from GitHub")?;
-
-        let complete = actions
-            .iter()
-            .filter(|c| {
-                matches!(
-                    c.get("status")
-                        .and_then(|conclusion| conclusion.as_str())
-                        .unwrap_or(""),
-                    "completed"
-                )
-            })
-            .count();
-
-        let running = actions
-            .iter()
-            .filter(|c| {
-                c.get("status")
-                    .and_then(|status| status.as_str())
-                    .unwrap_or("")
-                    != "completed"
-            })
-            .count();
-
-        let failed = actions
-            .iter()
-            .filter(|c| {
-                matches!(
-                    c.get("conclusion")
-                        .and_then(|conclusion| conclusion.as_str())
-                        .unwrap_or(""),
-                    "failure" | "timed_out" | "cancelled" | "action_required"
-                )
-            })
-            .count();
-
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("stars".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{}",
-                    repo_info
-                        .get("stargazers_count")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0)
-                )),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("stars".to_string()).magenta().bold(),
-                value: StyledText::new(format!(
-                    "{}",
-                    repo_info
-                        .get("stargazers_count")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0)
-                )),
-            });
-        }
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("forks".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{}",
-                    repo_info
-                        .get("forks_count")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0)
-                )),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("forks".to_string()).magenta().bold(),
-                value: StyledText::new(format!(
-                    "{}",
-                    repo_info
-                        .get("forks_count")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0)
-                )),
-            });
-        }
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("issues".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{} assigned | {} open ",
-                    issues_waiting, open_issues
-                )),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("issues".to_string()).magenta().bold(),
-                value: StyledText::new(format!(
-                    "{} assigned | {} open",
-                    issues_waiting, open_issues
-                )),
-            });
-        }
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("prs".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{} awaiting review | {} open",
-                    prs_waiting, open_pulls
-                )),
-            })
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("prs".to_string()).magenta().bold(),
-                value: StyledText::new(format!(
-                    "{} awaiting review | {} open",
-                    prs_waiting, open_pulls
-                )),
-            })
-        }
-        if self.colour != "auto" {
-            if running > 0 {
+        if self.config.show_stars {
+            if self.colour != "auto" {
                 output.rows.push(OutputRow::Info {
-                    label: StyledText::new("actions".to_string())
+                    label: StyledText::new("stars".to_string())
                         .apply_style(self.colour)
                         .bold(),
                     value: StyledText::new(format!(
-                        "◔ {}/{} completed",
-                        complete,
-                        complete + running
+                        "{}",
+                        repo_info
+                            .get("stargazers_count")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0)
                     )),
-                });
-            } else if failed > 0 {
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("actions".to_string())
-                        .apply_style(self.colour)
-                        .bold(),
-                    value: StyledText::new(format!("✗ {}/{} failed", failed, complete)),
-                });
-            } else if complete > 0 {
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("actions".to_string())
-                        .apply_style(self.colour)
-                        .bold(),
-                    value: StyledText::new(format!("✓ All {}/{} passing", complete, complete)),
                 });
             } else {
                 output.rows.push(OutputRow::Info {
-                    label: StyledText::new("actions".to_string())
-                        .apply_style(self.colour)
-                        .bold(),
-                    value: StyledText::new("No actions found"),
+                    label: StyledText::new("stars".to_string()).magenta().bold(),
+                    value: StyledText::new(format!(
+                        "{}",
+                        repo_info
+                            .get("stargazers_count")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0)
+                    )),
                 });
             }
-        } else {
-            if running > 0 {
+        }
+        if self.config.show_forks {
+            if self.colour != "auto" {
                 output.rows.push(OutputRow::Info {
-                    label: StyledText::new("actions".to_string()).bright_blue().bold(),
+                    label: StyledText::new("forks".to_string())
+                        .apply_style(self.colour)
+                        .bold(),
                     value: StyledText::new(format!(
-                        "◔ {}/{} completed",
-                        running,
-                        complete + running
+                        "{}",
+                        repo_info
+                            .get("forks_count")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0)
                     )),
-                });
-            } else if failed > 0 {
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("actions".to_string()).bright_blue().bold(),
-                    value: StyledText::new(format!("✗ {}/{} failed", failed, complete + failed)),
-                });
-            } else if complete > 0 {
-                output.rows.push(OutputRow::Info {
-                    label: StyledText::new("actions".to_string()).bright_blue().bold(),
-                    value: StyledText::new(format!("✓ All {}/{} passing", complete, complete)),
                 });
             } else {
                 output.rows.push(OutputRow::Info {
-                    label: StyledText::new("actions".to_string()).bright_blue().bold(),
-                    value: StyledText::new("No actions found"),
+                    label: StyledText::new("forks".to_string()).magenta().bold(),
+                    value: StyledText::new(format!(
+                        "{}",
+                        repo_info
+                            .get("forks_count")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0)
+                    )),
                 });
+            }
+        }
+        if self.config.show_issues {
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("issues".to_string())
+                        .apply_style(self.colour)
+                        .bold(),
+                    value: StyledText::new(format!(
+                        "{} assigned | {} open ",
+                        issues_waiting, open_issues
+                    )),
+                });
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("issues".to_string()).magenta().bold(),
+                    value: StyledText::new(format!(
+                        "{} assigned | {} open",
+                        issues_waiting, open_issues
+                    )),
+                });
+            }
+        }
+
+        if self.config.show_prs {
+            let pulls = fetch_all_pages(
+                &format!("https://api.github.com/repos/{}/{}/pulls", owner, repo),
+                &[("state", "open")],
+                None,
+            )
+            .context("Failed to fetch pull requests information from GitHub")?;
+            let open_pulls = pulls.len();
+            let prs_waiting = pulls
+                .iter()
+                .filter(|pull| {
+                    pull.get("requested_reviewers")
+                        .and_then(|rev| rev.as_array())
+                        .is_some_and(|reviewers| {
+                            reviewers.iter().any(|rev| {
+                                rev.get("login")
+                                    .unwrap_or(&serde_json::Value::String("".into()))
+                                    .as_str()
+                                    .unwrap_or("")
+                                    == username.as_str()
+                            })
+                        })
+                })
+                .count();
+            let issues = fetch_all_pages(
+                &format!("https://api.github.com/repos/{}/{}/issues", owner, repo),
+                &[("state", "open")],
+                None,
+            )
+            .context("Failed to fetch pull requests information from GitHub")?;
+            let open_issues = issues.len();
+            let issues_waiting = issues
+                .iter()
+                .filter(|pull| {
+                    pull.get("assignees")
+                        .and_then(|rev| rev.as_array())
+                        .is_some_and(|reviewers| {
+                            reviewers.iter().any(|rev| {
+                                rev.get("login")
+                                    .unwrap_or(&serde_json::Value::String("".into()))
+                                    .as_str()
+                                    .unwrap_or("")
+                                    == username.as_str()
+                            })
+                        })
+                })
+                .count();
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("prs".to_string())
+                        .apply_style(self.colour)
+                        .bold(),
+                    value: StyledText::new(format!(
+                        "{} awaiting review | {} open",
+                        prs_waiting, open_pulls
+                    )),
+                })
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("prs".to_string()).magenta().bold(),
+                    value: StyledText::new(format!(
+                        "{} awaiting review | {} open",
+                        prs_waiting, open_pulls
+                    )),
+                })
+            }
+        }
+        if self.config.show_actions {
+            let latest_sha = github_auth::make_request_with_token(
+                github_auth::get_client()?
+                    .get(format!(
+                        "https://api.github.com/repos/{}/{}/commits",
+                        owner, repo
+                    ))
+                    .query(&[("per_page", "1")]),
+            )
+            .context("Failed to fetch latest commit information from GitHub")?
+            .json::<serde_json::Value>()
+            .context("Failed to fetch latest commit information from GitHub")?
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|commit| commit.get("sha"))
+            .and_then(|sha| sha.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
+
+            let actions = fetch_all_pages(
+                &format!(
+                    "https://api.github.com/repos/{}/{}/commits/{}/check-runs",
+                    owner, repo, latest_sha
+                ),
+                &[],
+                Some("check_runs"),
+            )
+            .context("Failed to fetch GitHub Actions information from GitHub")?;
+
+            let complete = actions
+                .iter()
+                .filter(|c| {
+                    matches!(
+                        c.get("status")
+                            .and_then(|conclusion| conclusion.as_str())
+                            .unwrap_or(""),
+                        "completed"
+                    )
+                })
+                .count();
+
+            let running = actions
+                .iter()
+                .filter(|c| {
+                    c.get("status")
+                        .and_then(|status| status.as_str())
+                        .unwrap_or("")
+                        != "completed"
+                })
+                .count();
+
+            let failed = actions
+                .iter()
+                .filter(|c| {
+                    matches!(
+                        c.get("conclusion")
+                            .and_then(|conclusion| conclusion.as_str())
+                            .unwrap_or(""),
+                        "failure" | "timed_out" | "cancelled" | "action_required"
+                    )
+                })
+                .count();
+            if self.colour != "auto" {
+                if running > 0 {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("actions".to_string())
+                            .apply_style(self.colour)
+                            .bold(),
+                        value: StyledText::new(format!(
+                            "◔ {}/{} completed",
+                            complete,
+                            complete + running
+                        )),
+                    });
+                } else if failed > 0 {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("actions".to_string())
+                            .apply_style(self.colour)
+                            .bold(),
+                        value: StyledText::new(format!("✗ {}/{} failed", failed, complete)),
+                    });
+                } else if complete > 0 {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("actions".to_string())
+                            .apply_style(self.colour)
+                            .bold(),
+                        value: StyledText::new(format!("✓ All {}/{} passing", complete, complete)),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("actions".to_string())
+                            .apply_style(self.colour)
+                            .bold(),
+                        value: StyledText::new("No actions found"),
+                    });
+                }
+            } else {
+                if running > 0 {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("actions".to_string()).bright_blue().bold(),
+                        value: StyledText::new(format!(
+                            "◔ {}/{} completed",
+                            running,
+                            complete + running
+                        )),
+                    });
+                } else if failed > 0 {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("actions".to_string()).bright_blue().bold(),
+                        value: StyledText::new(format!(
+                            "✗ {}/{} failed",
+                            failed,
+                            complete + failed
+                        )),
+                    });
+                } else if complete > 0 {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("actions".to_string()).bright_blue().bold(),
+                        value: StyledText::new(format!("✓ All {}/{} passing", complete, complete)),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("actions".to_string()).bright_blue().bold(),
+                        value: StyledText::new("No actions found"),
+                    });
+                }
             }
         }
 

@@ -52,209 +52,224 @@ impl Component for GithubProfileComponent<'_> {
             }
         }
 
-        let profile = github_auth::make_request_with_token(
-            github_auth::get_client()?.get("https://api.github.com/user"),
-        )
-        .context("Failed to fetch GitHub profile information")?
-        .json::<serde_json::Value>()
-        .context("Failed to parse GitHub profile information")?;
+        if self.config.show_username || self.config.show_repos || self.config.show_followers {
+            let profile = github_auth::make_request_with_token(
+                github_auth::get_client()?.get("https://api.github.com/user"),
+            )
+            .context("Failed to fetch GitHub profile information")?
+            .json::<serde_json::Value>()
+            .context("Failed to parse GitHub profile information")?;
 
-        let username = profile
-            .get("login")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Unknown");
+            if self.config.show_username {
+                let username = profile
+                    .get("login")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown");
 
-        let name = profile
-            .get("name")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Unknown");
+                let name = profile
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown");
 
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("username".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!("@{} | {}", username, name)),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("username".to_string())
-                    .bright_yellow()
-                    .bold(),
-                value: StyledText::new(format!("@{} | {}", username, name)),
-            });
+                if self.colour != "auto" {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("username".to_string())
+                            .apply_style(self.colour)
+                            .bold(),
+                        value: StyledText::new(format!("@{} | {}", username, name)),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("username".to_string())
+                            .bright_yellow()
+                            .bold(),
+                        value: StyledText::new(format!("@{} | {}", username, name)),
+                    });
+                }
+            }
+
+            if self.config.show_repos {
+                let public_repos = profile
+                    .get("public_repos")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let private_repos = fetch_all_pages(
+                    "https://api.github.com/user/repos",
+                    &[
+                        ("visibility", "private"),
+                        ("affiliation", "owner,collaborator"),
+                    ],
+                    None,
+                )?
+                .len();
+
+                if self.colour != "auto" {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("repositories".to_string())
+                            .apply_style(self.colour)
+                            .bold(),
+                        value: StyledText::new(format!(
+                            "{} public | {} private",
+                            public_repos, private_repos
+                        )),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("repositories".to_string())
+                            .bright_yellow()
+                            .bold(),
+                        value: StyledText::new(format!(
+                            "{} public | {} private",
+                            public_repos, private_repos
+                        )),
+                    });
+                }
+            }
+
+            if self.config.show_followers {
+                let followers = profile
+                    .get("followers")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let following = profile
+                    .get("following")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                if self.colour != "auto" {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("followers".to_string())
+                            .apply_style(self.colour)
+                            .bold(),
+                        value: StyledText::new(format!(
+                            "{} followers | {} following",
+                            followers, following
+                        )),
+                    });
+                } else {
+                    output.rows.push(OutputRow::Info {
+                        label: StyledText::new("followers".to_string())
+                            .bright_yellow()
+                            .bold(),
+                        value: StyledText::new(format!(
+                            "{} followers | {} following",
+                            followers, following
+                        )),
+                    });
+                }
+            }
         }
 
-        let public_repos = profile
-            .get("public_repos")
+        if self.config.show_prs {
+            let merged = fetch_all_pages(
+                "https://api.github.com/search/issues?q=is:pr+is:merged+author:@me",
+                &[],
+                Some("items"),
+            )?
+            .len();
+            let open = fetch_all_pages(
+                "https://api.github.com/search/issues?q=is:pr+is:open+author:@me",
+                &[],
+                Some("items"),
+            )?
+            .len();
+            let draft = fetch_all_pages(
+                "https://api.github.com/search/issues?q=is:pr+is:draft+author:@me",
+                &[],
+                Some("items"),
+            )?
+            .len();
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("prs".to_string())
+                        .apply_style(self.colour)
+                        .bold(),
+                    value: StyledText::new(format!(
+                        "{} open | {} draft | {} merged",
+                        open, draft, merged
+                    )),
+                });
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("prs".to_string()).bright_yellow().bold(),
+                    value: StyledText::new(format!(
+                        "{} open | {} draft | {} merged",
+                        open, draft, merged
+                    )),
+                });
+            }
+        }
+
+        if self.config.show_commits {
+            let now = Utc::now();
+            let today = now.format("%Y-%m-%d").to_string();
+            let week_ago = (now - Duration::days(7)).format("%Y-%m-%d").to_string();
+            let day =
+                github_auth::make_request_with_token(github_auth::get_client()?.get(format!(
+                    "https://api.github.com/search/commits?q=author:@me+committer-date:>={}",
+                    today
+                )))
+                .context("Error getting recent commits")?
+                .json::<serde_json::Value>()
+                .context("Error parsing recent commits")?
+                .get("total_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+
+            let week =
+                github_auth::make_request_with_token(github_auth::get_client()?.get(format!(
+                    "https://api.github.com/search/commits?q=author:@me+committer-date:>={}",
+                    week_ago
+                )))
+                .context("Error getting recent commits")?
+                .json::<serde_json::Value>()
+                .context("Error parsing recent commits")?
+                .get("total_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let all = github_auth::make_request_with_token(
+                github_auth::get_client()?
+                    .get("https://api.github.com/search/commits?q=author:@me"),
+            )
+            .context("Error getting recent commits")?
+            .json::<serde_json::Value>()
+            .context("Error parsing recent commits")?
+            .get("total_count")
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
-        let private_repos = fetch_all_pages(
-            "https://api.github.com/user/repos",
-            &[
-                ("visibility", "private"),
-                ("affiliation", "owner,collaborator"),
-            ],
-            None,
-        )?
-        .len();
 
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("repositories".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{} public | {} private",
-                    public_repos, private_repos
-                )),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("repositories".to_string())
-                    .bright_yellow()
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{} public | {} private",
-                    public_repos, private_repos
-                )),
-            });
-        }
-
-        let followers = profile
-            .get("followers")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        let following = profile
-            .get("following")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("followers".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{} followers | {} following",
-                    followers, following
-                )),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("followers".to_string())
-                    .bright_yellow()
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{} followers | {} following",
-                    followers, following
-                )),
-            });
-        }
-
-        let merged = fetch_all_pages(
-            "https://api.github.com/search/issues?q=is:pr+is:merged+author:@me",
-            &[],
-            Some("items"),
-        )?
-        .len();
-        let open = fetch_all_pages(
-            "https://api.github.com/search/issues?q=is:pr+is:open+author:@me",
-            &[],
-            Some("items"),
-        )?
-        .len();
-        let draft = fetch_all_pages(
-            "https://api.github.com/search/issues?q=is:pr+is:draft+author:@me",
-            &[],
-            Some("items"),
-        )?
-        .len();
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("prs".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!(
-                    "{} open | {} draft | {} merged",
-                    open, draft, merged
-                )),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("prs".to_string()).bright_yellow().bold(),
-                value: StyledText::new(format!(
-                    "{} open | {} draft | {} merged",
-                    open, draft, merged
-                )),
-            });
-        }
-
-        let now = Utc::now();
-        let today = now.format("%Y-%m-%d").to_string();
-        let week_ago = (now - Duration::days(7)).format("%Y-%m-%d").to_string();
-        let day = github_auth::make_request_with_token(github_auth::get_client()?.get(format!(
-            "https://api.github.com/search/commits?q=author:@me+committer-date:>={}",
-            today
-        )))
-        .context("Error getting recent commits")?
-        .json::<serde_json::Value>()
-        .context("Error parsing recent commits")?
-        .get("total_count")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-
-        let week = github_auth::make_request_with_token(github_auth::get_client()?.get(format!(
-            "https://api.github.com/search/commits?q=author:@me+committer-date:>={}",
-            week_ago
-        )))
-        .context("Error getting recent commits")?
-        .json::<serde_json::Value>()
-        .context("Error parsing recent commits")?
-        .get("total_count")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-        let all = github_auth::make_request_with_token(
-            github_auth::get_client()?.get("https://api.github.com/search/commits?q=author:@me"),
-        )
-        .context("Error getting recent commits")?
-        .json::<serde_json::Value>()
-        .context("Error parsing recent commits")?
-        .get("total_count")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-
-        let day = if day >= 1000 {
-            format!("{}k", day / 1000)
-        } else {
-            day.to_string()
-        };
-        let week = if week >= 1000 {
-            format!("{}k", week / 1000)
-        } else {
-            week.to_string()
-        };
-        let all = if all >= 1000 {
-            format!("{:.2}k", all as f64 / 1000.0)
-                .trim_end_matches("0")
-                .trim_end_matches(".")
-                .to_string()
-        } else {
-            all.to_string()
-        };
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("commits".to_string())
-                    .apply_style(self.colour)
-                    .bold(),
-                value: StyledText::new(format!("{}d | {}w | {} total", day, week, all)),
-            });
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("commits".to_string())
-                    .bright_yellow()
-                    .bold(),
-                value: StyledText::new(format!("{}d | {}w | {} total", day, week, all)),
-            });
+            let day = if day >= 1000 {
+                format!("{}k", day / 1000)
+            } else {
+                day.to_string()
+            };
+            let week = if week >= 1000 {
+                format!("{}k", week / 1000)
+            } else {
+                week.to_string()
+            };
+            let all = if all >= 1000 {
+                format!("{:.2}k", all as f64 / 1000.0)
+                    .trim_end_matches("0")
+                    .trim_end_matches(".")
+                    .to_string()
+            } else {
+                all.to_string()
+            };
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("commits".to_string())
+                        .apply_style(self.colour)
+                        .bold(),
+                    value: StyledText::new(format!("{}d | {}w | {} total", day, week, all)),
+                });
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("commits".to_string())
+                        .bright_yellow()
+                        .bold(),
+                    value: StyledText::new(format!("{}d | {}w | {} total", day, week, all)),
+                });
+            }
         }
 
         output.rows.push(OutputRow::Blank);

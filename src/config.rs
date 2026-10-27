@@ -112,10 +112,26 @@ pub struct ComponentsConfig {
 #[serde(default)]
 pub struct GithubRepoConfig {
     pub enabled: bool,
+    pub show_url: bool,
+    pub show_repo: bool,
+    pub show_prs: bool,
+    pub show_actions: bool,
+    pub show_issues: bool,
+    pub show_forks: bool,
+    pub show_stars: bool,
 }
 impl Default for GithubRepoConfig {
     fn default() -> Self {
-        GithubRepoConfig { enabled: true }
+        GithubRepoConfig {
+            enabled: true,
+            show_url: true,
+            show_repo: true,
+            show_prs: true,
+            show_actions: true,
+            show_issues: true,
+            show_forks: true,
+            show_stars: true,
+        }
     }
 }
 
@@ -123,10 +139,22 @@ impl Default for GithubRepoConfig {
 #[serde(default)]
 pub struct GithubProfileConfig {
     pub enabled: bool,
+    pub show_username: bool,
+    pub show_repos: bool,
+    pub show_followers: bool,
+    pub show_prs: bool,
+    pub show_commits: bool,
 }
 impl Default for GithubProfileConfig {
     fn default() -> Self {
-        GithubProfileConfig { enabled: true }
+        GithubProfileConfig {
+            enabled: true,
+            show_username: true,
+            show_repos: true,
+            show_followers: true,
+            show_prs: true,
+            show_commits: true,
+        }
     }
 }
 
