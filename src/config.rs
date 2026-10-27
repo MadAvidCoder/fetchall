@@ -106,6 +106,18 @@ pub struct ComponentsConfig {
     pub user: UserConfig,
     pub github_repo: GithubRepoConfig,
     pub github_profile: GithubProfileConfig,
+    pub hackatime: HackatimeConfig,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(default)]
+pub struct HackatimeConfig {
+    pub enabled: bool,
+}
+impl Default for HackatimeConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]

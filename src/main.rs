@@ -2,6 +2,7 @@ mod component;
 mod components;
 mod config;
 mod github_auth;
+mod hackatime_auth;
 mod helpers;
 mod logo;
 mod output;
