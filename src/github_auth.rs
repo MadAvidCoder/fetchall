@@ -6,6 +6,7 @@ const CLIENT_ID: &str = "Iv23liyYTQ6uxsZGC7kg";
 const DEVICE_URL: &str = "https://github.com/login/device/code";
 const GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
 const TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
+const CONTINUE_URL: &str = "https://github.com/apps/fetchall-cli/installations/new";
 
 #[derive(Debug, serde::Deserialize)]
 struct DeviceCodeResponse {
@@ -80,10 +81,10 @@ pub fn login() -> Result<()> {
                 entry
                     .set_password(&token)
                     .context("Failed to set keyring password")?;
-                print!(
-                    "Successfully logged in to GitHub. Access token securely saved to OS store."
+                println!(
+                    "Successfully authorised GitHub. Access token securely saved to OS store."
                 );
-                return Ok(());
+                break;
             }
             Err(e) => {
                 if e.to_string().contains("authorization_pending") {
@@ -103,6 +104,13 @@ pub fn login() -> Result<()> {
             }
         }
     }
+    println!();
+    println!(
+        "Please go to {} and install Fetchall CLI Github to complete the setup.",
+        CONTINUE_URL
+    );
+    open::that(CONTINUE_URL)?;
+    Ok(())
 }
 
 pub fn username() -> Result<String> {
@@ -151,8 +159,7 @@ pub fn make_request_with_token(
         .header("Authorization", format!("Bearer {}", token))
         .header("Accept", "application/vnd.github+json");
 
-    req
-        .send()?
+    req.send()?
         .error_for_status()
         .context("Failed to make request. Your token may have expired.")
 }
