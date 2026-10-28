@@ -113,10 +113,21 @@ pub struct ComponentsConfig {
 #[serde(default)]
 pub struct HackatimeConfig {
     pub enabled: bool,
+    pub show_hours: bool,
+    pub show_streak: bool,
+    pub show_languages: bool,
+    pub show_project: bool,
+
 }
 impl Default for HackatimeConfig {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            show_hours: true,
+            show_streak: true
+            show_languages: true,
+            show_project: true,
+        }
     }
 }
 
