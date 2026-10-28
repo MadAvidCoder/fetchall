@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use reqwest::blocking::Client;
 use tiny_http::{Header, Response, Server};
 
+use crate::styled_text::StyledText;
+
 const CLIENT_ID: &str = "JY5N9DSWmLfAS2s8FubiB2vq4AHu2esBk-tUmN18mlM";
 const REDIRECT_URI: &str = "http://127.0.0.1:8787/hackatime_callback";
 
@@ -14,7 +16,16 @@ pub fn login() -> Result<()> {
         "https://hackatime.hackclub.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=profile+read",
         CLIENT_ID, REDIRECT_URI
     );
-    println!("Please go to {} to authorize the application", url);
+    print!("Please go to ");
+    print!(
+        "{}",
+        StyledText::new(&url).italic().bright_yellow().render()
+    );
+    print!(" and authorize ");
+    println!(
+        "{}",
+        StyledText::new("fetchall-cli").bold().italic().render()
+    );
     open::that(url)?;
 
     let code = await_callback().context("Callback failed. Please try again later.")?;
@@ -48,9 +59,8 @@ pub fn login() -> Result<()> {
     let entry = keyring::Entry::new("fetchall", "hackatime-token")
         .context("Failed to create keyring entry")?;
     entry
-        .set_password(&token)
+        .set_password(token)
         .context("Failed to set keyring password. Check your OS settings")?;
-    println!("{}", token);
     print!("Successfully logged in to Hackatime. Access token securely saved to OS store.");
     Ok(())
 }
