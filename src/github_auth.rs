@@ -1,6 +1,9 @@
 use anyhow::{Context, Result, bail};
+use arboard::Clipboard;
 use reqwest::blocking::Client;
 use std::time::{Duration, Instant};
+
+use crate::styled_text::StyledText;
 
 const CLIENT_ID: &str = "Iv23liyYTQ6uxsZGC7kg";
 const DEVICE_URL: &str = "https://github.com/login/device/code";
@@ -59,10 +62,31 @@ fn request_access_token(device_code: &str) -> Result<String> {
 
 pub fn login() -> Result<()> {
     let device = request_device_code()?;
-    println!(
-        "Please go to {} and enter the code: {}",
-        device.verification_uri, device.user_code
+    print!("Please go to ");
+    print!(
+        "{}",
+        StyledText::new(&device.verification_uri)
+            .bright_yellow()
+            .italic()
+            .render()
     );
+    print!(" and enter the code: ");
+    print!(
+        "{}",
+        StyledText::new(&device.user_code).bright_yellow().render()
+    );
+
+    let mut clipboard = Clipboard::new().unwrap();
+    clipboard.set_text(&device.user_code).unwrap();
+
+    println!(
+        "{}",
+        StyledText::new(" (code copied to clipboard)")
+            .italic()
+            .dimmed()
+            .render()
+    );
+
     open::that(&device.verification_uri)?;
     let started = Instant::now();
     let mut interval = device.interval.max(1);
@@ -105,10 +129,16 @@ pub fn login() -> Result<()> {
         }
     }
     println!();
-    println!(
-        "Please go to {} and install Fetchall CLI Github to complete the setup.",
-        CONTINUE_URL
+    print!("Please go to ");
+    print!(
+        "{}",
+        StyledText::new(CONTINUE_URL)
+            .bright_yellow()
+            .italic()
+            .render()
     );
+    println!(" and install Fetchall CLI Github to complete setup.");
+
     open::that(CONTINUE_URL)?;
     Ok(())
 }
