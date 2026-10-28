@@ -23,6 +23,7 @@ enum Profile {
     Dev,
     Life,
     Game,
+    All,
 }
 
 #[derive(Debug, clap::Subcommand)]

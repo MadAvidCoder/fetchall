@@ -54,6 +54,21 @@ impl Default for Config {
                 components: vec!["user".to_string()],
             },
         );
+        profiles.insert(
+            "all".to_string(),
+            ProfileConfig {
+                components: vec![
+                    "user".to_string(),
+                    "system".to_string(),
+                    "git".to_string(),
+                    "dev_env".to_string(),
+                    "github_repo".to_string(),
+                    "github_profile".to_string(),
+                    "hackatime".to_string(),
+                    "weather".to_string(),
+                ],
+            },
+        );
         Config {
             general: GeneralConfig::default(),
             appearance: AppearanceConfig::default(),
