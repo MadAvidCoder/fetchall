@@ -5,3 +5,4 @@ pub mod dev_env;
 pub mod github_profile;
 pub mod github_repo;
 pub mod hackatime;
+pub mod weather;

@@ -107,6 +107,20 @@ pub struct ComponentsConfig {
     pub github_repo: GithubRepoConfig,
     pub github_profile: GithubProfileConfig,
     pub hackatime: HackatimeConfig,
+    pub weather: WeatherConfig,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(default)]
+pub struct WeatherConfig {
+    pub enabled: bool,
+}
+impl Default for WeatherConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
