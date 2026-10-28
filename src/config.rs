@@ -118,10 +118,20 @@ pub struct ComponentsConfig {
 #[serde(default)]
 pub struct WeatherConfig {
     pub enabled: bool,
+    pub show_current: bool,
+    pub show_today: bool,
+    pub show_wind: bool,
+    pub show_sun: bool,
 }
 impl Default for WeatherConfig {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            show_current: true,
+            show_today: true,
+            show_wind: true,
+            show_sun: true,
+        }
     }
 }
 

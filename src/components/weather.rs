@@ -91,7 +91,7 @@ impl Component for WeatherComponent<'_> {
         );
 
         let weather = client.get(
-            format!("https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&daily=sunset&weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,precipitation_hours,rain_sum,showers_sum&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,apparent_temperature,precipitation,rain,showers,weather_code&hourly=uv_index&timezone=auto&forecast_days=1", coords.0, coords.1)
+            format!("https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&daily=precipitation_sum,sunset,sunrise,weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,precipitation_hours,rain_sum,showers_sum&current=wind_speed_10m,relative_humidity_2m,wind_direction_10m,wind_gusts_10m,temperature_2m,apparent_temperature,precipitation,rain,showers,weather_code&hourly=uv_index&timezone=auto&forecast_days=1", coords.0, coords.1)
         )
         .send()?
         .error_for_status()
@@ -99,178 +99,198 @@ impl Component for WeatherComponent<'_> {
         .json::<serde_json::Value>()
         .context("Failed to convert to weather data")?;
 
-        let cur_temp = weather
-            .get("current")
-            .and_then(|c| c.get("temperature_2m"))
-            .and_then(|t| t.as_f64())
-            .unwrap_or(0.0);
+        if self.config.show_current {
+            let cur_temp = weather
+                .get("current")
+                .and_then(|c| c.get("temperature_2m"))
+                .and_then(|t| t.as_f64())
+                .unwrap_or(0.0);
 
-        let cur_condition = weather_codes
-            .get(
-                &(weather
-                    .get("current")
-                    .and_then(|c| c.get("weather_code"))
-                    .and_then(|w| w.as_u64())
-                    .unwrap_or(0) as u8),
-            )
-            .unwrap_or(&("Unknown", "❓"));
-        let cur_feel = weather
-            .get("current")
-            .and_then(|c| c.get("apparent_temperature"))
-            .and_then(|x| x.as_f64())
-            .unwrap_or(0.0);
+            let cur_condition = weather_codes
+                .get(
+                    &(weather
+                        .get("current")
+                        .and_then(|c| c.get("weather_code"))
+                        .and_then(|w| w.as_u64())
+                        .unwrap_or(0) as u8),
+                )
+                .unwrap_or(&("Unknown", "❓"));
+            let cur_feel = weather
+                .get("current")
+                .and_then(|c| c.get("apparent_temperature"))
+                .and_then(|x| x.as_f64())
+                .unwrap_or(0.0);
+            let cur_humidity = weather
+                .get("current")
+                .and_then(|c| c.get("relative_humidity_2m"))
+                .and_then(|x| x.as_f64())
+                .unwrap_or(0.0);
 
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("current").bold().apply_style(self.colour),
-                value: StyledText::new(format!(
-                    "{} {:.1}°C | feels like {:.1}°",
-                    cur_condition.1, cur_temp, cur_feel
-                ))
-                .apply_style(self.colour),
-            })
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("current").bold().red(),
-                value: StyledText::new(format!(
-                    "{} {:.1}°C | feels like {:.1}°",
-                    cur_condition.1, cur_temp, cur_feel
-                )),
-            })
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("current").bold().apply_style(self.colour),
+                    value: StyledText::new(format!(
+                        "{} {:.1}°C | feels {:.1}° | {:.0}% RH",
+                        cur_condition.1, cur_temp, cur_feel, cur_humidity
+                    ))
+                    .apply_style(self.colour),
+                })
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("current").bold().red(),
+                    value: StyledText::new(format!(
+                        "{} {:.1}°C | feels {:.1}° | {:.0}% RH",
+                        cur_condition.1, cur_temp, cur_feel, cur_humidity
+                    )),
+                })
+            }
         }
 
-        let today_min = weather
-            .get("daily")
-            .and_then(|c| c.get("temperature_2m_min"))
-            .and_then(|c| c.as_array())
-            .and_then(|d| d.iter().next())
-            .and_then(|f| f.as_f64())
-            .unwrap_or(0.0);
-        let today_max = weather
-            .get("daily")
-            .and_then(|c| c.get("temperature_2m_max"))
-            .and_then(|c| c.as_array())
-            .and_then(|d| d.iter().next())
-            .and_then(|f| f.as_f64())
-            .unwrap_or(0.0);
-        let today_prob_rain = weather
-            .get("daily")
-            .and_then(|c| c.get("precipitation_probability_max"))
-            .and_then(|c| c.as_array())
-            .and_then(|d| d.iter().next())
-            .and_then(|f| f.as_u64())
-            .unwrap_or(0);
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("today").bold().apply_style(self.colour),
-                value: StyledText::new(format!(
-                    "{:.1}°/{:.1}° | rain {:.0}%",
-                    today_min, today_max, today_prob_rain
-                )),
-            })
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("today").bold().bright_blue(),
-                value: StyledText::new(format!(
-                    "{:.1}°/{:.1}° | rain {:.0}%",
-                    today_min, today_max, today_prob_rain
-                )),
-            })
+        if self.config.show_today {
+            let today_min = weather
+                .get("daily")
+                .and_then(|c| c.get("temperature_2m_min"))
+                .and_then(|c| c.as_array())
+                .and_then(|d| d.iter().next())
+                .and_then(|f| f.as_f64())
+                .unwrap_or(0.0);
+            let today_max = weather
+                .get("daily")
+                .and_then(|c| c.get("temperature_2m_max"))
+                .and_then(|c| c.as_array())
+                .and_then(|d| d.iter().next())
+                .and_then(|f| f.as_f64())
+                .unwrap_or(0.0);
+            let today_prob_rain = weather
+                .get("daily")
+                .and_then(|c| c.get("precipitation_probability_max"))
+                .and_then(|c| c.as_array())
+                .and_then(|d| d.iter().next())
+                .and_then(|f| f.as_u64())
+                .unwrap_or(0);
+            let today_rain_sum = weather
+                .get("daily")
+                .and_then(|c| c.get("precipitation_sum"))
+                .and_then(|c| c.as_array())
+                .and_then(|d| d.iter().next())
+                .and_then(|f| f.as_f64())
+                .unwrap_or(0.0);
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("today").bold().apply_style(self.colour),
+                    value: StyledText::new(format!(
+                        "{:.1}°/{:.1}° | rain {:.0}%/{:.1}mm",
+                        today_min, today_max, today_prob_rain, today_rain_sum
+                    )),
+                })
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("today").bold().bright_blue(),
+                    value: StyledText::new(format!(
+                        "{:.1}°/{:.1}° | rain {:.0}%/{:.1}mm",
+                        today_min, today_max, today_prob_rain, today_rain_sum
+                    )),
+                })
+            }
         }
 
-        let cur_wind = weather
-            .get("current")
-            .and_then(|c| c.get("wind_speed_10m"))
-            .and_then(|x| x.as_f64())
-            .unwrap_or(0.0);
-        let cur_wind_dir = weather
-            .get("current")
-            .and_then(|c| c.get("wind_direction_10m"))
-            .and_then(|x| x.as_f64())
-            .unwrap_or(0.0);
-        let cur_wind_gust = weather
-            .get("current")
-            .and_then(|c| c.get("wind_gusts_10m"))
-            .and_then(|x| x.as_f64())
-            .unwrap_or(0.0);
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("wind").bold().apply_style(self.colour),
-                value: StyledText::new(format!(
-                    "{:.1} km/h {} | gusts {:.1} km/h°",
-                    cur_wind,
-                    deg_to_cardinal(cur_wind_dir),
-                    cur_wind_gust
-                ))
-                .apply_style(self.colour),
-            })
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("wind").bold().bright_cyan(),
-                value: StyledText::new(format!(
-                    "{:.1} km/h {} | gusts {:.1} km/h",
-                    cur_wind,
-                    deg_to_cardinal(cur_wind_dir),
-                    cur_wind_gust
-                )),
-            })
+        if self.config.show_wind {
+            let cur_wind = weather
+                .get("current")
+                .and_then(|c| c.get("wind_speed_10m"))
+                .and_then(|x| x.as_f64())
+                .unwrap_or(0.0);
+            let cur_wind_dir = weather
+                .get("current")
+                .and_then(|c| c.get("wind_direction_10m"))
+                .and_then(|x| x.as_f64())
+                .unwrap_or(0.0);
+            let cur_wind_gust = weather
+                .get("current")
+                .and_then(|c| c.get("wind_gusts_10m"))
+                .and_then(|x| x.as_f64())
+                .unwrap_or(0.0);
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("wind").bold().apply_style(self.colour),
+                    value: StyledText::new(format!(
+                        "{:.1} km/h {} | gusts {:.1} km/h°",
+                        cur_wind,
+                        deg_to_cardinal(cur_wind_dir),
+                        cur_wind_gust
+                    ))
+                    .apply_style(self.colour),
+                })
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("wind").bold().bright_cyan(),
+                    value: StyledText::new(format!(
+                        "{:.1} km/h {} | gusts {:.1} km/h",
+                        cur_wind,
+                        deg_to_cardinal(cur_wind_dir),
+                        cur_wind_gust
+                    )),
+                })
+            }
         }
 
-        let now = Local::now().format("%Y-%m-%dT%H:00").to_string();
+        if self.config.show_sun {
+            let now = Local::now().format("%Y-%m-%dT%H:00").to_string();
 
-        let uv_index = weather
-            .get("hourly")
-            .and_then(|c| c.get("time"))
-            .and_then(|c| c.as_array())
-            .and_then(|c| c.iter().position(|k| k == &now))
-            .map(|i| {
+            let uv_index = weather
+                .get("hourly")
+                .and_then(|c| c.get("time"))
+                .and_then(|c| c.as_array())
+                .and_then(|c| c.iter().position(|k| k == &now))
+                .map(|i| {
+                    weather
+                        .get("hourly")
+                        .and_then(|c| c.get("uv_index"))
+                        .and_then(|f| f.as_array())
+                        .map(|d| d[i].as_f64().unwrap_or(0.0))
+                        .unwrap_or(0.0)
+                })
+                .unwrap_or(0.0);
+            let sunset = NaiveDateTime::parse_from_str(
                 weather
-                    .get("hourly")
-                    .and_then(|c| c.get("uv_index"))
-                    .and_then(|f| f.as_array())
-                    .map(|d| d[i].as_f64().unwrap_or(0.0))
-                    .unwrap_or(0.0)
-            })
-            .unwrap_or(0.0);
-        let sunset = NaiveDateTime::parse_from_str(
-            weather
-                .get("daily")
-                .and_then(|c| c.get("sunset"))
-                .and_then(|c| c.as_array())
-                .and_then(|d| d.iter().next())
-                .and_then(|f| f.as_str())
-                .unwrap_or("1970-01-01T00:00"),
-            "%Y-%m-%dT%H:%M",
-        )?;
-        let sunrise = NaiveDateTime::parse_from_str(
-            weather
-                .get("daily")
-                .and_then(|c| c.get("sunrise"))
-                .and_then(|c| c.as_array())
-                .and_then(|d| d.iter().next())
-                .and_then(|f| f.as_str())
-                .unwrap_or("1970-01-01T00:00"),
-            "%Y-%m-%dT%H:%M",
-        )?;
-        if self.colour != "auto" {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("sun").bold().apply_style(self.colour),
-                value: StyledText::new(format!(
-                    "{:.1} UV | {}",
-                    uv_index,
-                    format_sunset_time(sunset, sunrise)
-                ))
-                .apply_style(self.colour),
-            })
-        } else {
-            output.rows.push(OutputRow::Info {
-                label: StyledText::new("sun").bold().yellow(),
-                value: StyledText::new(format!(
-                    "{:.1} UV | {}",
-                    uv_index,
-                    format_sunset_time(sunset, sunrise)
-                )),
-            })
+                    .get("daily")
+                    .and_then(|c| c.get("sunset"))
+                    .and_then(|c| c.as_array())
+                    .and_then(|d| d.iter().next())
+                    .and_then(|f| f.as_str())
+                    .unwrap_or("1970-01-01T00:00"),
+                "%Y-%m-%dT%H:%M",
+            )?;
+            let sunrise = NaiveDateTime::parse_from_str(
+                weather
+                    .get("daily")
+                    .and_then(|c| c.get("sunrise"))
+                    .and_then(|c| c.as_array())
+                    .and_then(|d| d.iter().next())
+                    .and_then(|f| f.as_str())
+                    .unwrap_or("1970-01-01T00:00"),
+                "%Y-%m-%dT%H:%M",
+            )?;
+            if self.colour != "auto" {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("sun").bold().apply_style(self.colour),
+                    value: StyledText::new(format!(
+                        "{:.1} UV | {}",
+                        uv_index,
+                        format_sunset_time(sunset, sunrise)
+                    ))
+                    .apply_style(self.colour),
+                })
+            } else {
+                output.rows.push(OutputRow::Info {
+                    label: StyledText::new("sun").bold().yellow(),
+                    value: StyledText::new(format!(
+                        "{:.1} UV | {}",
+                        uv_index,
+                        format_sunset_time(sunset, sunrise)
+                    )),
+                })
+            }
         }
 
         Ok(output)
