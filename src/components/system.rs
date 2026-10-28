@@ -31,8 +31,6 @@ impl Component for SystemComponent<'_> {
         if !self.config.enabled {
             return Ok(ComponentOutput { rows: Vec::new() });
         }
-        let os_name: String = System::name().unwrap_or_else(|| "Unknown".to_string());
-
         if sysinfo::IS_SUPPORTED_SYSTEM {
             let mut info: ComponentOutput = ComponentOutput { rows: Vec::new() };
             if *self.show_section_titles {
@@ -51,6 +49,8 @@ impl Component for SystemComponent<'_> {
             }
 
             if self.config.show_os {
+                let os_name: String =
+                    System::long_os_version().unwrap_or_else(|| "Unknown".to_string());
                 if self.colour != "auto" {
                     info.rows.push(OutputRow::Info {
                         label: StyledText::new("os").apply_style(self.colour).bold(),
@@ -67,6 +67,49 @@ impl Component for SystemComponent<'_> {
             let mut sys = System::new_all();
 
             sys.refresh_all();
+
+            if self.config.show_uptime {
+                let uptime = System::uptime();
+                if self.colour != "auto" {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("uptime").apply_style(self.colour).bold(),
+                        value: StyledText::new(format!(
+                            "{}{}{}",
+                            match uptime / 86400 {
+                                0 => "".to_string(),
+                                n => format!("{} days, ", n),
+                            },
+                            match (uptime % 86400) / 3600 {
+                                0 => "".to_string(),
+                                n => format!("{} hours, ", n),
+                            },
+                            match (uptime % 3600) / 60 {
+                                0 => "".to_string(),
+                                n => format!("{} minutes", n),
+                            }
+                        )),
+                    });
+                } else {
+                    info.rows.push(OutputRow::Info {
+                        label: StyledText::new("uptime").cyan().bold(),
+                        value: StyledText::new(format!(
+                            "{}{}{}",
+                            match uptime / 86400 {
+                                0 => "".to_string(),
+                                n => format!("{} days, ", n),
+                            },
+                            match (uptime % 86400) / 3600 {
+                                0 => "".to_string(),
+                                n => format!("{} hours, ", n),
+                            },
+                            match (uptime % 3600) / 60 {
+                                0 => "".to_string(),
+                                n => format!("{} minutes", n),
+                            }
+                        )),
+                    });
+                }
+            }
 
             if self.config.show_memory {
                 let used_mem = sys.used_memory() as f64 / 1_073_741_824.0;

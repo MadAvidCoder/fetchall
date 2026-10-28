@@ -247,6 +247,7 @@ pub struct SystemConfig {
     pub show_memory: bool,
     pub show_disk: bool,
     pub show_cpu: bool,
+    pub show_uptime: bool,
 }
 
 impl Default for SystemConfig {
@@ -257,6 +258,7 @@ impl Default for SystemConfig {
             show_memory: true,
             show_disk: true,
             show_cpu: true,
+            show_uptime: true,
         }
     }
 }
