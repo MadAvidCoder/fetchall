@@ -41,7 +41,11 @@ impl Default for Config {
         profiles.insert(
             "life".to_string(),
             ProfileConfig {
-                components: vec!["user".to_string(), "hackatime".to_string()],
+                components: vec![
+                    "user".to_string(),
+                    "hackatime".to_string(),
+                    "weather".to_string(),
+                ],
             },
         );
         profiles.insert(
@@ -117,9 +121,7 @@ pub struct WeatherConfig {
 }
 impl Default for WeatherConfig {
     fn default() -> Self {
-        Self {
-            enabled: true,
-        }
+        Self { enabled: true }
     }
 }
 
@@ -131,14 +133,13 @@ pub struct HackatimeConfig {
     pub show_streak: bool,
     pub show_languages: bool,
     pub show_project: bool,
-
 }
 impl Default for HackatimeConfig {
     fn default() -> Self {
         Self {
             enabled: true,
             show_hours: true,
-            show_streak: true
+            show_streak: true,
             show_languages: true,
             show_project: true,
         }
