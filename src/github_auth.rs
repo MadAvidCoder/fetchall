@@ -9,7 +9,7 @@ const CLIENT_ID: &str = "Iv23liyYTQ6uxsZGC7kg";
 const DEVICE_URL: &str = "https://github.com/login/device/code";
 const GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
 const TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
-const CONTINUE_URL: &str = "https://github.com/apps/fetchall-cli/installations/new";
+pub const CONTINUE_URL: &str = "https://github.com/apps/fetchall-cli/installations/new";
 
 #[derive(Debug, serde::Deserialize)]
 struct DeviceCodeResponse {
@@ -18,6 +18,52 @@ struct DeviceCodeResponse {
     verification_uri: String,
     expires_in: u64,
     interval: u64,
+}
+
+fn check_app_install(token: &str) -> Result<bool> {
+    let client = get_client()?;
+    let req = client
+        .get("https://api.github.com/user/installations")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json");
+
+    let resp = req
+        .send()?
+        .error_for_status()
+        .context("Failed to make request. Your token may have expired.")?
+        .json::<serde_json::Value>()?;
+
+    let count = resp
+        .get("total_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    Ok(count > 0)
+}
+
+pub fn check_login() -> Result<(bool, bool)> {
+    let entry = keyring::Entry::new("fetchall", "github-token")
+        .context("Failed to access OS credential storage")?;
+    match entry.get_password() {
+        Ok(token) => {
+            let token = token.trim().trim_matches('"');
+            if token.is_empty() {
+                Ok((false, false))
+            } else {
+                Ok((true, check_app_install(token).unwrap_or(false)))
+            }
+        }
+        Err(_) => Ok((false, false)),
+    }
+}
+
+pub fn revoke() -> Result<()> {
+    let entry = keyring::Entry::new("fetchall", "github-token")
+        .context("Failed to access OS credential storage")?;
+    entry
+        .delete_credential()
+        .context("Failed to delete token from OS credential storage")?;
+    println!("Successfully revoked GitHub authentication.");
+    Ok(())
 }
 
 fn request_device_code() -> Result<DeviceCodeResponse> {
@@ -61,6 +107,28 @@ fn request_access_token(device_code: &str) -> Result<String> {
 }
 
 pub fn login() -> Result<()> {
+    match check_login().unwrap_or((false, false)) {
+        (true, true) => {
+            println!("You've already logged into GitHub.");
+            return Ok(());
+        }
+        (true, false) => {
+            println!("GitHub is already authenticated, but the app is not installed.");
+            println!();
+            print!("Please go to ");
+            print!(
+                "{}",
+                StyledText::new(CONTINUE_URL)
+                    .bright_yellow()
+                    .italic()
+                    .render()
+            );
+            println!(" and install Fetchall CLI Github to complete setup.");
+            open::that(CONTINUE_URL)?;
+            return Ok(());
+        }
+        (false, _) => {}
+    }
     let device = request_device_code()?;
     print!("Please go to ");
     print!(

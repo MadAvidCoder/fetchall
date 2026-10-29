@@ -13,6 +13,7 @@ use crate::component::{Component, get_component_by_name};
 use crate::components::user::UserComponent;
 use crate::output::ComponentOutput;
 use crate::renderer::render;
+use crate::styled_text::StyledText;
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
 
@@ -27,19 +28,26 @@ enum Profile {
 }
 
 #[derive(Debug, clap::Subcommand)]
+#[group(multiple = false)]
 enum Commands {
     Auth {
-        #[command(subcommand, help = "The API to authenticate")]
-        action: AuthAction,
-        #[arg(long, help = "Check authentication status")]
+        #[arg(value_enum, help = "The API to authenticate")]
+        service: AuthService,
+        #[arg(
+            long,
+            group = "auth_action",
+            help = "Authenticate fetchall to use the API"
+        )]
+        login: bool,
+        #[arg(long, group = "auth_action", help = "Check authentication status")]
         status: bool,
-        #[arg(long, help = "Revoke authentication")]
+        #[arg(long, group = "auth_action", help = "Revoke authentication")]
         revoke: bool,
     },
 }
 
-#[derive(Debug, clap::Subcommand)]
-enum AuthAction {
+#[derive(Debug, clap::ValueEnum, Clone, Copy)]
+enum AuthService {
     Github,
     Hackatime,
 }
@@ -66,19 +74,73 @@ fn main() -> Result<()> {
     if let Some(command) = args.command {
         match command {
             Commands::Auth {
-                action: AuthAction::Github,
-                status: _,
-                revoke: _,
+                service: AuthService::Github,
+                login,
+                status,
+                revoke,
             } => {
-                github_auth::login()?;
+                if login || !status && !revoke {
+                    github_auth::login()?;
+                } else if status {
+                    match github_auth::check_login().unwrap_or((false, false)) {
+                        (true, true) => {
+                            println!("GitHub is authenticated and the app is installed.");
+                        }
+                        (true, false) => {
+                            println!("GitHub is authenticated, but the app is not installed.");
+                            println!();
+                            print!("Please go to ");
+                            print!(
+                                "{}",
+                                StyledText::new(github_auth::CONTINUE_URL)
+                                    .bright_yellow()
+                                    .italic()
+                                    .render()
+                            );
+                            println!(" and install Fetchall CLI Github to complete setup.");
+                        }
+                        (false, _) => {
+                            print!("You have not authenticated GitHub. Please run `");
+                            print!(
+                                "{}",
+                                StyledText::new("fetchall auth github")
+                                    .bright_yellow()
+                                    .bold()
+                                    .render()
+                            );
+                            println!("` to authenticate.");
+                        }
+                    }
+                } else if revoke {
+                    github_auth::revoke()?;
+                }
                 return Ok(());
             }
             Commands::Auth {
-                action: AuthAction::Hackatime,
-                status: _,
-                revoke: _,
+                service: AuthService::Hackatime,
+                login,
+                status,
+                revoke,
             } => {
-                hackatime_auth::login()?;
+                if login || !status && !revoke {
+                    hackatime_auth::login()?;
+                } else if status {
+                    if hackatime_auth::check_login()? {
+                        println!("Hackatime is authenticated.");
+                    } else {
+                        print!("You have not authenticated hackatime. Please run `");
+                        print!(
+                            "{}",
+                            StyledText::new("fetchall auth hackatime")
+                                .bright_yellow()
+                                .bold()
+                                .render()
+                        );
+                        println!("` to authenticate.");
+                    }
+                } else if revoke {
+                    hackatime_auth::revoke()?;
+                }
                 return Ok(());
             }
         }

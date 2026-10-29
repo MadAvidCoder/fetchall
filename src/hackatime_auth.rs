@@ -7,11 +7,41 @@ use crate::styled_text::StyledText;
 const CLIENT_ID: &str = "JY5N9DSWmLfAS2s8FubiB2vq4AHu2esBk-tUmN18mlM";
 const REDIRECT_URI: &str = "http://127.0.0.1:8787/hackatime_callback";
 
+pub fn check_login() -> Result<bool> {
+    let entry = keyring::Entry::new("fetchall", "hackatime-token")
+        .context("Failed to access OS credential storage")?;
+    match entry.get_password() {
+        Ok(token) => {
+            let token = token.trim().trim_matches('"');
+            if token.is_empty() {
+                Ok(false)
+            } else {
+                Ok(true)
+            }
+        }
+        Err(_) => Ok(false),
+    }
+}
+
+pub fn revoke() -> Result<()> {
+    let entry = keyring::Entry::new("fetchall", "hackatime-token")
+        .context("Failed to access OS credential storage")?;
+    entry
+        .delete_credential()
+        .context("Failed to delete token from OS credential storage")?;
+    println!("Successfully revoked Hackatime authentication.");
+    Ok(())
+}
+
 pub fn get_client() -> Result<Client> {
     Ok(Client::builder().user_agent("fetchall").build()?)
 }
 
 pub fn login() -> Result<()> {
+    if check_login().unwrap_or(false) {
+        println!("You are already logged in to Hackatime.");
+        return Ok(());
+    }
     let url = format!(
         "https://hackatime.hackclub.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=profile+read",
         CLIENT_ID, REDIRECT_URI
