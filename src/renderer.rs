@@ -29,15 +29,14 @@ pub fn render(logo: &StyledText, info: &ComponentOutput, logo_gap: usize, label_
         let row_text: String = match row {
             OutputRow::Info { label, value } => {
                 let label_pad: usize = if label_width > label.width() {
-                    label_width.saturating_sub(label.width()) + label_gap.saturating_sub(1)
+                    label_width.saturating_sub(label.width()) + label_gap
                 } else {
-                    label_gap.saturating_sub(1)
+                    label_gap
                 };
                 format!(
-                    "{}{}{} {}",
+                    "{}{}{}",
                     label.render(),
                     " ".repeat(label_pad),
-                    if label.text.is_empty() { " " } else { ":" },
                     value.render(),
                 )
             }
