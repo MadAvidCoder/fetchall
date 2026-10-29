@@ -16,6 +16,13 @@ use crate::renderer::render;
 use crate::styled_text::StyledText;
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use ratatui::buffer::Buffer;
+use ratatui::layout::{Alignment, Constraint, Rect};
+use ratatui::style::{Color, Style, Stylize};
+use ratatui::text::{Line, Text};
+use ratatui::widgets::{Block, Paragraph, Widget};
+use ratatui::{DefaultTerminal, Frame};
 
 #[derive(Clone, Copy, ValueEnum, Debug)]
 enum Profile {
@@ -44,6 +51,10 @@ enum Commands {
         #[arg(long, group = "auth_action", help = "Revoke authentication")]
         revoke: bool,
     },
+    Config {
+        #[arg(long, help = "Edit the configuration file")]
+        edit: bool,
+    },
 }
 
 #[derive(Debug, clap::ValueEnum, Clone, Copy)]
@@ -68,6 +79,202 @@ struct Args {
     command: Option<Commands>,
 }
 
+#[derive(Debug, PartialEq, Default)]
+enum ConfigScreens {
+    #[default]
+    Welcome,
+    MainMenu {
+        selected: usize,
+    },
+    ProfilesMenu,
+    ComponentsMenu,
+    AppearanceMenu,
+    IntegrationsMenu,
+}
+
+#[derive(Default, Debug)]
+struct ConfigTui {
+    exit: bool,
+    screen: ConfigScreens,
+}
+impl ConfigTui {
+    fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
+        while !self.exit {
+            terminal.draw(|frame| self.draw(frame))?;
+            self.handle_input()?;
+        }
+        Ok(())
+    }
+    fn draw(&self, frame: &mut Frame) {
+        frame.render_widget(self, frame.area());
+    }
+    fn handle_input(&mut self) -> Result<()> {
+        if let Event::Key(key_event) = event::read()?
+            && key_event.kind == KeyEventKind::Press
+        {
+            self.handle_key_event(key_event);
+        }
+        Ok(())
+    }
+
+    fn handle_key_event(&mut self, key_event: KeyEvent) {
+        if (key_event.code == KeyCode::Char('c')
+            && key_event
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL))
+            || key_event.code == KeyCode::Esc
+            || key_event.code == KeyCode::Char('q')
+        {
+            self.exit = true;
+            return;
+        }
+        if self.screen == ConfigScreens::Welcome {
+            self.screen = ConfigScreens::MainMenu { selected: 0 };
+            return;
+        }
+        match key_event.code {
+            KeyCode::Down => {
+                if let ConfigScreens::MainMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 1) % 5;
+                }
+            }
+            KeyCode::Up => {
+                if let ConfigScreens::MainMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 4) % 5;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn render_welcome(&self, area: Rect, buf: &mut Buffer) {
+        let title =
+            Line::from("  fetchall | Welcome  ").style(Style::default().fg(Color::Cyan).bold());
+        let welcome_text = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::styled(
+                "Welcome to Fetchall CLI!",
+                Style::default().fg(Color::Yellow).bold(),
+            ),
+            Line::from(""),
+            Line::styled(
+                "Please press any key to continue with the setup...",
+                Style::default().italic().dim(),
+            ),
+            Line::from(""),
+            Line::from(""),
+        ];
+        let width = [
+            title.width(),
+            welcome_text.iter().map(|l| l.width()).max().unwrap_or(0),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((welcome_text.len() + 2) as u16),
+        );
+        Paragraph::new(Text::from(welcome_text).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center),
+            )
+            .alignment(Alignment::Center)
+            .render(area, buf);
+    }
+    fn render_main_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
+        let lines = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::styled(
+                "Profiles",
+                if selected == 0 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::styled(
+                "Components",
+                if selected == 1 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::styled(
+                "Appearance",
+                if selected == 2 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::styled(
+                "Integrations",
+                if selected == 3 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::from(""),
+            Line::styled(
+                "Exit",
+                if selected == 4 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::from(""),
+            Line::from(""),
+        ];
+        let title =
+            Line::from("  fetchall | Main Menu  ").style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom =
+            Line::from(" Use arrow keys to navigate, Enter to select, and Esc to exit. ".italic())
+                .centered()
+                .style(Style::default().fg(Color::DarkGray));
+
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+}
+
+impl Widget for &ConfigTui {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        match self.screen {
+            ConfigScreens::Welcome => self.render_welcome(area, buf),
+            ConfigScreens::MainMenu { selected } => self.render_main_menu(area, buf, selected),
+            ConfigScreens::ProfilesMenu => todo!(),
+            ConfigScreens::ComponentsMenu => todo!(),
+            ConfigScreens::AppearanceMenu => todo!(),
+            ConfigScreens::IntegrationsMenu => todo!(),
+        };
+    }
+}
 fn main() -> Result<()> {
     let args = Args::parse();
 
@@ -84,7 +291,7 @@ fn main() -> Result<()> {
                 } else if status {
                     match github_auth::check_login().unwrap_or((false, false)) {
                         (true, true) => {
-                            println!("GitHub is authenticated and the app is installed.");
+                            println!("GitHub is already authenticated and the app is installed.");
                         }
                         (true, false) => {
                             println!("GitHub is authenticated, but the app is not installed.");
@@ -142,6 +349,9 @@ fn main() -> Result<()> {
                     hackatime_auth::revoke()?;
                 }
                 return Ok(());
+            }
+            Commands::Config { edit: _ } => {
+                return ratatui::run(|terminal| ConfigTui::default().run(terminal));
             }
         }
     }
