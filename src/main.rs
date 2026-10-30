@@ -97,8 +97,10 @@ enum ConfigScreens {
         name: String,
         cursor: usize,
     },
+    AppearanceMenu {
+        selected: usize,
+    },
     ComponentsMenu,
-    AppearanceMenu,
     IntegrationsMenu,
 }
 
@@ -241,6 +243,8 @@ impl ConfigTui {
                     } else {
                         *selected = (*selected + 1) % (component::COMPONENTS.len() + 1);
                     }
+                } else if let ConfigScreens::AppearanceMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 1) % 4;
                 }
             }
             KeyCode::Up => {
@@ -270,6 +274,8 @@ impl ConfigTui {
                         *selected = (*selected + component::COMPONENTS.len() + 1 - 1)
                             % (component::COMPONENTS.len() + 1);
                     }
+                } else if let ConfigScreens::AppearanceMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 4 - 1) % 4;
                 }
             }
             KeyCode::Char('m') => {
@@ -304,7 +310,7 @@ impl ConfigTui {
                     match selected {
                         0 => self.screen = ConfigScreens::ProfilesMenu { selected: 0 },
                         1 => todo!("Components"),
-                        2 => todo!("Appearance"),
+                        2 => self.screen = ConfigScreens::AppearanceMenu { selected: 0 },
                         3 => todo!("Integeration"),
                         4 => self.exit = true,
                         _ => {}
@@ -398,6 +404,14 @@ impl ConfigTui {
                             .position(|(c, _)| c == &sel_comp)
                             .unwrap_or(0);
                     }
+                } else if let ConfigScreens::AppearanceMenu { selected } = &mut self.screen {
+                    match selected {
+                        0 => todo!("Logo"),
+                        1 => todo!("Colour Scheme"),
+                        2 => todo!("Layout"),
+                        3 => self.screen = ConfigScreens::MainMenu { selected: 0 },
+                        _ => {}
+                    }
                 }
             }
 
@@ -412,7 +426,7 @@ impl ConfigTui {
             Line::from(""),
             Line::from(""),
             Line::styled(
-                "Welcome to Fetchall CLI!",
+                "Welcome to Fetchall CLI Setup!",
                 Style::default().fg(Color::Yellow).bold(),
             ),
             Line::from(""),
@@ -602,7 +616,7 @@ impl ConfigTui {
                 if selected == 3 {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
-                    Style::default().fg(Color::White)
+                    Style::default().fg(Color::DarkGray)
                 },
             ),
             Line::from(""),
@@ -610,6 +624,74 @@ impl ConfigTui {
         ];
         let title = Line::from(format!("  fetchall | {}  ", profile))
             .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom =
+            Line::from(" Use arrow keys to navigate, Enter to select, and Esc to exit. ".italic())
+                .centered()
+                .style(Style::default().fg(Color::DarkGray));
+
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
+    fn render_appearance(&self, area: Rect, buf: &mut Buffer, selected: usize) {
+        let lines = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::styled(
+                "Logo",
+                if selected == 0 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::styled(
+                "Colour Scheme",
+                if selected == 1 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::styled(
+                "Layout",
+                if selected == 2 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::from(""),
+            Line::styled(
+                "Back",
+                if selected == 3 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                },
+            ),
+            Line::from(""),
+            Line::from(""),
+        ];
+        let title =
+            Line::from("  fetchall | Appearance  ").style(Style::default().fg(Color::Cyan).bold());
         let title_bottom =
             Line::from(" Use arrow keys to navigate, Enter to select, and Esc to exit. ".italic())
                 .centered()
@@ -881,7 +963,7 @@ impl ConfigTui {
                 if selected == 4 {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
-                    Style::default().fg(Color::White)
+                    Style::default().fg(Color::DarkGray)
                 },
             ),
             Line::from(""),
@@ -938,8 +1020,10 @@ impl Widget for &ConfigTui {
                 name,
                 cursor,
             } => self.render_rename_profile(area, buf, name, profile, *cursor),
+            ConfigScreens::AppearanceMenu { selected } => {
+                self.render_appearance(area, buf, *selected)
+            }
             ConfigScreens::ComponentsMenu => todo!(),
-            ConfigScreens::AppearanceMenu => todo!(),
             ConfigScreens::IntegrationsMenu => todo!(),
         };
     }
