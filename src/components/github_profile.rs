@@ -272,8 +272,6 @@ impl Component for GithubProfileComponent<'_> {
             }
         }
 
-        output.rows.push(OutputRow::Blank);
-
         Ok(output)
     }
 }

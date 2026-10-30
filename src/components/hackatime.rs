@@ -282,8 +282,6 @@ impl Component for HackatimeComponent<'_> {
             }
         }
 
-        output.rows.push(OutputRow::Blank);
-
         Ok(output)
     }
 }

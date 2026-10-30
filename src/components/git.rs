@@ -234,7 +234,6 @@ impl Component for GitComponent<'_> {
                 }
             }
         }
-        output.rows.push(OutputRow::Blank);
 
         Ok(output)
     }

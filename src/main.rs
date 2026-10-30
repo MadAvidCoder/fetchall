@@ -9,74 +9,20 @@ mod output;
 mod renderer;
 mod styled_text;
 
-use crate::component::{Component, get_component_by_name};
+use crate::component::{COMPONENTS, Component, get_component_by_name};
 use crate::components::user::UserComponent;
 use crate::output::ComponentOutput;
 use crate::renderer::render;
 use crate::styled_text::StyledText;
 use anyhow::Result;
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Style, Stylize};
-use ratatui::text::{Line, Text};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Paragraph, Widget};
 use ratatui::{DefaultTerminal, Frame};
-use std::fmt;
-
-#[derive(Clone, Copy, ValueEnum, Debug)]
-#[repr(usize)]
-enum Profile {
-    Default,
-    System,
-    Dev,
-    Life,
-    Game,
-    All,
-}
-impl TryFrom<usize> for Profile {
-    type Error = ();
-
-    fn try_from(value: usize) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Profile::Default),
-            1 => Ok(Profile::System),
-            2 => Ok(Profile::Dev),
-            3 => Ok(Profile::Life),
-            4 => Ok(Profile::Game),
-            5 => Ok(Profile::All),
-            _ => Err(()),
-        }
-    }
-}
-
-impl fmt::Display for Profile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = match self {
-            Profile::Default => "Default",
-            Profile::System => "System",
-            Profile::Dev => "Dev",
-            Profile::Life => "Life",
-            Profile::Game => "Game",
-            Profile::All => "All",
-        };
-        write!(f, "{name}")
-    }
-}
-impl Profile {
-    const ALL: [Profile; 6] = [
-        Profile::Default,
-        Profile::System,
-        Profile::Dev,
-        Profile::Life,
-        Profile::Game,
-        Profile::All,
-    ];
-    fn iter() -> impl Iterator<Item = Profile> {
-        Self::ALL.into_iter()
-    }
-}
 
 #[derive(Debug, clap::Subcommand)]
 #[group(multiple = false)]
@@ -134,7 +80,22 @@ enum ConfigScreens {
         selected: usize,
     },
     ProfileEditor {
-        profile: Profile,
+        profile: String,
+        selected: usize,
+    },
+    EnableComponentsMenu {
+        profile: String,
+        selected: usize,
+        moving: Option<usize>,
+    },
+    NewProfileMenu {
+        name: String,
+        cursor: usize,
+    },
+    RenameProfileMenu {
+        profile: String,
+        name: String,
+        cursor: usize,
     },
     ComponentsMenu,
     AppearanceMenu,
@@ -171,8 +132,9 @@ impl ConfigTui {
             && key_event
                 .modifiers
                 .contains(crossterm::event::KeyModifiers::CONTROL))
-            || key_event.code == KeyCode::Esc
-            || key_event.code == KeyCode::Char('q')
+            || ((key_event.code == KeyCode::Esc || key_event.code == KeyCode::Char('q'))
+                && !matches!(self.screen, ConfigScreens::NewProfileMenu { .. })
+                && !matches!(self.screen, ConfigScreens::RenameProfileMenu { .. }))
         {
             self.exit = true;
             return;
@@ -181,39 +143,264 @@ impl ConfigTui {
             self.screen = ConfigScreens::MainMenu { selected: 0 };
             return;
         }
+        if let ConfigScreens::NewProfileMenu { name, cursor } = &mut self.screen {
+            match key_event.code {
+                KeyCode::Esc => {
+                    self.screen = ConfigScreens::ProfilesMenu { selected: 0 };
+                }
+                KeyCode::Char(c) => {
+                    name.insert(*cursor, c);
+                    *cursor += 1;
+                }
+                KeyCode::Backspace if *cursor > 0 => {
+                    name.remove(*cursor - 1);
+                    *cursor -= 1;
+                }
+                KeyCode::Delete if *cursor < name.len() => {
+                    name.remove(*cursor);
+                }
+                KeyCode::Left if *cursor > 0 => *cursor -= 1,
+                KeyCode::Right if *cursor < name.len() => *cursor += 1,
+                KeyCode::Enter if !name.trim().is_empty() => {
+                    config::add_profile(&name.trim().to_lowercase()).unwrap();
+
+                    self.screen = ConfigScreens::EnableComponentsMenu {
+                        profile: name.trim().to_lowercase(),
+                        selected: 0,
+                        moving: None,
+                    };
+                }
+                _ => {}
+            }
+            return;
+        }
+        if let ConfigScreens::RenameProfileMenu {
+            name,
+            cursor,
+            profile,
+        } = &mut self.screen
+        {
+            match key_event.code {
+                KeyCode::Esc => {
+                    self.screen = ConfigScreens::ProfileEditor {
+                        profile: profile.clone(),
+                        selected: 0,
+                    };
+                }
+                KeyCode::Char(c)
+                    if c != ' ' && c != '\t' && c != '\n' && c != '\r' && c != '\0' =>
+                {
+                    name.insert(*cursor, c);
+                    *cursor += 1;
+                }
+                KeyCode::Backspace if *cursor > 0 => {
+                    name.remove(*cursor - 1);
+                    *cursor -= 1;
+                }
+                KeyCode::Delete if *cursor < name.len() => {
+                    name.remove(*cursor);
+                }
+                KeyCode::Left if *cursor > 0 => *cursor -= 1,
+                KeyCode::Right if *cursor < name.len() => *cursor += 1,
+                KeyCode::Enter if !name.trim().is_empty() => {
+                    config::rename_profile(profile, &name.trim().to_lowercase()).unwrap();
+
+                    self.screen = ConfigScreens::ProfileEditor {
+                        profile: name.trim().to_lowercase(),
+                        selected: 0,
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
         match key_event.code {
             KeyCode::Down => {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
                     *selected = (*selected + 1) % 5;
-                } else if let ConfigScreens::ProfileScreen { selected } = &mut self.screen {
-                    *selected = (*selected + 1) % Profile::ALL.len();
+                } else if let ConfigScreens::ProfilesMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 1) % (config::get_profiles().len() + 3);
+                } else if let ConfigScreens::ProfileEditor { selected, .. } = &mut self.screen {
+                    *selected = (*selected + 1) % 4;
+                } else if let ConfigScreens::EnableComponentsMenu {
+                    selected,
+                    moving,
+                    profile,
+                } = &mut self.screen
+                {
+                    if let Some(moving) = moving {
+                        let config = config::load_config(None).unwrap();
+                        let enabled = &config.profiles[profile].components;
+                        if *moving + 1 < enabled.len() {
+                            config::move_component_prof(profile, &enabled[*moving], *moving + 1)
+                                .unwrap();
+                            *moving += 1;
+                            *selected = *moving
+                        }
+                    } else {
+                        *selected = (*selected + 1) % (component::COMPONENTS.len() + 1);
+                    }
                 }
             }
             KeyCode::Up => {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
-                    *selected = (*selected + 4) % 5;
-                } else if let ConfigScreens::ProfileScreen { selected } = &mut self.screen {
-                    *selected = (*selected + Profile::ALL.len() - 1) % Profile::ALL.len();
+                    *selected = (*selected + 5 - 1) % 5;
+                } else if let ConfigScreens::ProfilesMenu { selected } = &mut self.screen {
+                    *selected = (*selected + config::get_profiles().len() + 3 - 1)
+                        % (config::get_profiles().len() + 3);
+                } else if let ConfigScreens::ProfileEditor { selected, .. } = &mut self.screen {
+                    *selected = (*selected + 4 - 1) % 4;
+                } else if let ConfigScreens::EnableComponentsMenu {
+                    selected,
+                    moving,
+                    profile,
+                } = &mut self.screen
+                {
+                    if let Some(moving) = moving {
+                        let config = config::load_config(None).unwrap();
+                        let enabled = &config.profiles[profile].components;
+                        if *moving > 0 {
+                            config::move_component_prof(profile, &enabled[*moving], *moving - 1)
+                                .unwrap();
+                            *moving -= 1;
+                            *selected = *moving
+                        }
+                    } else {
+                        *selected = (*selected + component::COMPONENTS.len() + 1 - 1)
+                            % (component::COMPONENTS.len() + 1);
+                    }
                 }
             }
-            KeyCode::Enter | KeyCode::Space => {
+            KeyCode::Char('m') => {
+                if let ConfigScreens::EnableComponentsMenu {
+                    selected,
+                    moving,
+                    profile,
+                } = &mut self.screen
+                {
+                    if moving.is_none()
+                        && *selected < component::COMPONENTS.len()
+                        && config::load_config(None)
+                            .unwrap()
+                            .profiles
+                            .get(&profile.to_string().to_lowercase())
+                            .map(|f| f.components.clone())
+                            .unwrap_or_default()
+                            .contains(
+                                &Self::get_ordered_components(profile)[*selected]
+                                    .0
+                                    .to_string(),
+                            )
+                    {
+                        *moving = Some(*selected);
+                    } else {
+                        *moving = None;
+                    }
+                }
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
                     match selected {
                         0 => self.screen = ConfigScreens::ProfilesMenu { selected: 0 },
                         1 => todo!("Components"),
                         2 => todo!("Appearance"),
                         3 => todo!("Integeration"),
-                        4 => {
-                            self.exit = true;
-                            return;
-                        }
+                        4 => self.exit = true,
+                        _ => {}
                     };
                 } else if let ConfigScreens::ProfilesMenu { selected } = &mut self.screen {
-                    self.screen = ConfigScreens::ProfileEditor {
-                        profile: Profile::try_from(selected).unwrap_or(Profile::Default),
-                    };
+                    if *selected == config::get_profiles().len() + 2 {
+                        self.screen = ConfigScreens::MainMenu { selected: 0 };
+                    } else if *selected == config::get_profiles().len() + 1 {
+                        config::reset_profiles().unwrap();
+                    } else if *selected == config::get_profiles().len() {
+                        self.screen = ConfigScreens::NewProfileMenu {
+                            name: String::new(),
+                            cursor: 0,
+                        }
+                    } else {
+                        self.screen = ConfigScreens::ProfileEditor {
+                            selected: 0,
+                            profile: config::get_profiles()[*selected].to_string(),
+                        };
+                    }
+                } else if let ConfigScreens::ProfileEditor { profile, selected } = &mut self.screen
+                {
+                    match selected {
+                        0 => {
+                            self.screen = ConfigScreens::EnableComponentsMenu {
+                                profile: profile.clone(),
+                                selected: 0,
+                                moving: None,
+                            }
+                        }
+                        1 => {
+                            self.screen = ConfigScreens::RenameProfileMenu {
+                                profile: profile.clone(),
+                                name: profile.clone(),
+                                cursor: profile.len(),
+                            }
+                        }
+                        2 => {
+                            let profile_name = profile.to_string().to_lowercase();
+                            config::remove_profile(&profile_name).unwrap();
+                            self.screen = ConfigScreens::ProfilesMenu { selected: 0 };
+                        }
+                        3 => {
+                            self.screen = ConfigScreens::ProfilesMenu {
+                                selected: config::get_profiles()
+                                    .iter()
+                                    .position(|p| p == profile)
+                                    .unwrap_or(0),
+                            }
+                        }
+                        _ => {}
+                    }
+                } else if let ConfigScreens::EnableComponentsMenu {
+                    profile,
+                    selected,
+                    moving,
+                } = &mut self.screen
+                {
+                    if moving.is_some() {
+                        *moving = None;
+                    } else if *selected == component::COMPONENTS.len() {
+                        self.screen = ConfigScreens::ProfileEditor {
+                            selected: 0,
+                            profile: profile.clone(),
+                        };
+                    } else {
+                        let sel_comp = Self::get_ordered_components(profile)[*selected].0;
+                        let config = config::load_config(None).unwrap();
+                        if config
+                            .profiles
+                            .get(&profile.to_string().to_lowercase())
+                            .map(|a| a.components.clone())
+                            .unwrap_or_default()
+                            .contains(&sel_comp.to_string())
+                        {
+                            config::remove_component_from_profile(
+                                &profile.to_string().to_lowercase(),
+                                sel_comp,
+                            )
+                            .unwrap();
+                        } else {
+                            config::add_component_to_profile(
+                                &profile.to_string().to_lowercase(),
+                                sel_comp,
+                            )
+                            .unwrap();
+                        }
+
+                        *selected = Self::get_ordered_components(profile)
+                            .iter()
+                            .position(|(c, _)| c == &sel_comp)
+                            .unwrap_or(0);
+                    }
                 }
             }
+
             _ => {}
         }
     }
@@ -257,31 +444,249 @@ impl ConfigTui {
             .alignment(Alignment::Center)
             .render(area, buf);
     }
-    fn render_profile_editor(&self, area: Rect, buf: &mut Buffer, profile: Profile) {
-        todo!();
-        let lines = vec![Line::from("")];
+    fn render_new_profile(&self, area: Rect, buf: &mut Buffer, text: &str, cursor: usize) {
+        let title: Line<'_> =
+            Line::from("  fetchall | New Profile  ").style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom =
+            Line::from(" Type a profile name, Enter to create, and Esc to cancel ".italic())
+                .centered()
+                .style(Style::default().fg(Color::DarkGray));
+        let cur_name = if cursor < text.len() {
+            Line::from(vec![
+                Span::styled(&text[..cursor], Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    &text[cursor..cursor.saturating_add(1)],
+                    Style::default().bg(Color::LightYellow).fg(Color::Black),
+                ),
+                Span::styled(
+                    &text[cursor.saturating_add(1)..],
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::from(" "),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(text, Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    " ",
+                    Style::default().bg(Color::LightYellow).fg(Color::Black),
+                ),
+            ])
+        };
+        let lines = vec![
+            Line::from(""),
+            Line::from("Please enter a name for the new profile:"),
+            Line::from(""),
+            cur_name,
+            Line::from(""),
+            Line::from(""),
+        ];
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
+    fn render_rename_profile(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        text: &str,
+        profile: &str,
+        cursor: usize,
+    ) {
+        let title: Line<'_> = Line::from(format!("  fetchall | Rename {}  ", profile))
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom =
+            Line::from(" Edit the profile name, Enter to confirm, and Esc to cancel ".italic())
+                .centered()
+                .style(Style::default().fg(Color::DarkGray));
+        let cur_name = if cursor < text.len() {
+            Line::from(vec![
+                Span::styled(&text[..cursor], Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    &text[cursor..cursor.saturating_add(1)],
+                    Style::default().bg(Color::LightYellow).fg(Color::Black),
+                ),
+                Span::styled(
+                    &text[cursor.saturating_add(1)..],
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::from(" "),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(text, Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    " ",
+                    Style::default().bg(Color::LightYellow).fg(Color::Black),
+                ),
+            ])
+        };
+        let lines = vec![
+            Line::from(""),
+            Line::from(format!("Please enter a new name for {}:", profile)),
+            Line::from(""),
+            cur_name,
+            Line::from(""),
+            Line::from(""),
+        ];
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
+    fn render_profile_editor(&self, area: Rect, buf: &mut Buffer, profile: &str, selected: usize) {
+        let lines: Vec<Line<'_>> = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::styled(
+                "Modify Components",
+                if selected == 0 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::from(""),
+            Line::styled(
+                "Rename Profile",
+                if selected == 1 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::styled(
+                "Delete Profile",
+                if selected == 2 {
+                    Style::default().fg(Color::LightYellow).bold()
+                } else {
+                    Style::default().fg(Color::Red)
+                },
+            ),
+            Line::from(""),
+            Line::styled(
+                "Back",
+                if selected == 3 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ),
+            Line::from(""),
+            Line::from(""),
+        ];
+        let title = Line::from(format!("  fetchall | {}  ", profile))
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom =
+            Line::from(" Use arrow keys to navigate, Enter to select, and Esc to exit. ".italic())
+                .centered()
+                .style(Style::default().fg(Color::DarkGray));
+
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
     }
 
     fn render_profiles(&self, area: Rect, buf: &mut Buffer, selected: usize) {
         let mut lines = vec![
             Line::from(""),
-            Line::from(""),
-            Line::Styled(
+            Line::styled(
                 "Select a profile to modify",
-                Style::default().fg(Color::White).bold(),
+                Style::default().fg(Color::LightCyan).bold(),
             ),
             Line::from(""),
+            Line::from(""),
         ];
-        for profile in Profile::iter() {
-            lines.push(Line::Styled(
-                format!("{}", profile),
-                if selected == profile as usize {
+        for profile in config::get_profiles().iter() {
+            lines.push(Line::styled(
+                profile.to_string(),
+                if selected
+                    == config::get_profiles()
+                        .iter()
+                        .position(|p| p == profile)
+                        .unwrap_or(0)
+                {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
                     Style::default().fg(Color::White)
                 },
             ))
         }
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Create New Profile",
+            if selected == config::get_profiles().len() {
+                Style::default().fg(Color::Yellow).bold()
+            } else {
+                Style::default().fg(Color::White)
+            },
+        ));
+        lines.push(Line::styled(
+            "Reset to defaults",
+            if selected == config::get_profiles().len() + 1 {
+                Style::default().fg(Color::LightYellow).bold()
+            } else {
+                Style::default().fg(Color::Red)
+            },
+        ));
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Back",
+            if selected == config::get_profiles().len() + 2 {
+                Style::default().fg(Color::Yellow).bold()
+            } else {
+                Style::default().fg(Color::DarkGray)
+            },
+        ));
         lines.push(Line::from(""));
         lines.push(Line::from(""));
         let title = Line::from("  fetchall | Profiles Config  ")
@@ -313,12 +718,133 @@ impl ConfigTui {
             .render(area, buf);
     }
 
+    fn get_ordered_components(profile: &str) -> Vec<&(&str, &str)> {
+        let config = config::load_config(None).unwrap();
+        let enabled = config
+            .profiles
+            .get(&profile.to_string().to_lowercase())
+            .map(|f| f.components.clone())
+            .unwrap_or_default();
+        [
+            enabled
+                .iter()
+                .map(|c| {
+                    COMPONENTS
+                        .iter()
+                        .find(|comp| comp.0 == c)
+                        .unwrap_or(&("", ""))
+                })
+                .collect::<Vec<_>>(),
+            COMPONENTS
+                .iter()
+                .filter(|a| !enabled.contains(&a.0.to_string()))
+                .collect::<Vec<_>>(),
+        ]
+        .concat()
+    }
+
+    fn render_edit_components(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        profile: &str,
+        selected: usize,
+        moving: Option<usize>,
+    ) {
+        let config = config::load_config(None).unwrap();
+        let enabled = config
+            .profiles
+            .get(&profile.to_string().to_lowercase())
+            .map(|f| f.components.clone())
+            .unwrap_or_default();
+
+        let index = if let Some(moving) = moving {
+            moving
+        } else {
+            selected
+        };
+        let highlight = if moving.is_some() {
+            Style::default().fg(Color::LightYellow).bold().italic()
+        } else {
+            Style::default().fg(Color::Yellow).bold()
+        };
+
+        let mut lines: Vec<Line<'_>> = vec![Line::from(""), Line::from("")];
+        for (i, component) in Self::get_ordered_components(profile).iter().enumerate() {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    component.1,
+                    if index == i {
+                        highlight
+                    } else if enabled.contains(&component.0.to_string()) {
+                        Style::default().fg(Color::White)
+                    } else {
+                        Style::default().fg(Color::DarkGray)
+                    },
+                ),
+                Span::from("\n"),
+                Span::styled(
+                    if enabled.contains(&component.0.to_string()) {
+                        "  ON"
+                    } else {
+                        "  OFF"
+                    },
+                    if enabled.contains(&component.0.to_string()) {
+                        Style::default().fg(Color::Green)
+                    } else {
+                        Style::default().fg(Color::Red)
+                    },
+                ),
+            ]));
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Return",
+            if selected == component::COMPONENTS.len() {
+                Style::default().fg(Color::Yellow).bold()
+            } else {
+                Style::default().fg(Color::White)
+            },
+        ));
+        lines.push(Line::from(""));
+        lines.push(Line::from(""));
+
+        let title = Line::from(format!("  fetchall | {} | Choose Components  ", profile))
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom = Line::from(
+            " Use arrow keys to navigate, Enter to toggle, M to reorder, and Esc to exit. "
+                .italic(),
+        )
+        .centered()
+        .style(Style::default().fg(Color::DarkGray));
+
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
     fn render_main_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
-        let lines = vec![
+        let lines: Vec<Line<'_>> = vec![
             Line::from(""),
             Line::from(""),
             Line::styled(
-                "Profile1s",
+                "Profiles",
                 if selected == 0 {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
@@ -392,11 +918,26 @@ impl ConfigTui {
 
 impl Widget for &ConfigTui {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        match self.screen {
+        match &self.screen {
             ConfigScreens::Welcome => self.render_welcome(area, buf),
-            ConfigScreens::MainMenu { selected } => self.render_main_menu(area, buf, selected),
-            ConfigScreens::ProfilesMenu { selected } => self.render_profiles(area, buf, selected),
-            ConfigScreens::ProfileEditor => todo!(),
+            ConfigScreens::MainMenu { selected } => self.render_main_menu(area, buf, *selected),
+            ConfigScreens::ProfilesMenu { selected } => self.render_profiles(area, buf, *selected),
+            ConfigScreens::ProfileEditor { profile, selected } => {
+                self.render_profile_editor(area, buf, profile, *selected)
+            }
+            ConfigScreens::EnableComponentsMenu {
+                profile,
+                selected,
+                moving,
+            } => self.render_edit_components(area, buf, profile, *selected, *moving),
+            ConfigScreens::NewProfileMenu { name, cursor } => {
+                self.render_new_profile(area, buf, name, *cursor)
+            }
+            ConfigScreens::RenameProfileMenu {
+                profile,
+                name,
+                cursor,
+            } => self.render_rename_profile(area, buf, name, profile, *cursor),
             ConfigScreens::ComponentsMenu => todo!(),
             ConfigScreens::AppearanceMenu => todo!(),
             ConfigScreens::IntegrationsMenu => todo!(),

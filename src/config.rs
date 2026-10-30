@@ -321,6 +321,108 @@ impl Default for ProfileConfig {
     }
 }
 
+pub fn rename_profile(old_name: &str, new_name: &str) -> Result<()> {
+    let mut config = load_config(None)?;
+    if let Some(profile_entry) = config.profiles.remove(&old_name.to_lowercase()) {
+        config
+            .profiles
+            .insert(new_name.to_string().to_lowercase(), profile_entry);
+        save_config(&config, None)?;
+    }
+    Ok(())
+}
+
+pub fn add_profile(profile: &str) -> Result<()> {
+    let mut config = load_config(None)?;
+    if !config.profiles.contains_key(&profile.to_lowercase()) {
+        config.profiles.insert(
+            profile.to_string().to_lowercase(),
+            ProfileConfig {
+                components: vec!["user".to_string(), "system".to_string(), "git".to_string()],
+            },
+        );
+        save_config(&config, None)?;
+    }
+    Ok(())
+}
+pub fn move_component_prof(profile: &str, component: &str, new_index: usize) -> Result<()> {
+    let mut config = load_config(None)?;
+    if let Some(profile_entry) = config.profiles.get_mut(&profile.to_string().to_lowercase())
+        && let Some(current_index) = profile_entry
+            .components
+            .iter()
+            .position(|c| c == &component.to_string().to_lowercase())
+        && new_index < profile_entry.components.len()
+    {
+        let component = profile_entry.components.remove(current_index);
+        profile_entry.components.insert(new_index, component);
+    }
+    save_config(&config, None)?;
+    Ok(())
+}
+
+pub fn remove_profile(profile: &str) -> Result<()> {
+    let mut config = load_config(None)?;
+    if config.profiles.remove(&profile.to_lowercase()).is_some() {
+        save_config(&config, None)?;
+    }
+    Ok(())
+}
+
+pub fn add_component_to_profile(profile: &str, component: &str) -> Result<()> {
+    let mut config = load_config(None)?;
+    let profile_entry = config
+        .profiles
+        .entry(profile.to_string().to_lowercase())
+        .or_insert(ProfileConfig::default());
+    if !profile_entry
+        .components
+        .contains(&component.to_string().to_lowercase())
+    {
+        profile_entry
+            .components
+            .push(component.to_string().to_lowercase());
+    }
+    save_config(&config, None)?;
+    Ok(())
+}
+
+pub fn remove_component_from_profile(profile: &str, component: &str) -> Result<()> {
+    let mut config = load_config(None)?;
+    if let Some(profile_entry) = config.profiles.get_mut(&profile.to_string().to_lowercase()) {
+        profile_entry
+            .components
+            .retain(|c| c != &component.to_string().to_lowercase());
+    }
+    save_config(&config, None)?;
+    Ok(())
+}
+
+pub fn reset_profiles() -> Result<()> {
+    let mut config = load_config(None)?;
+    config.profiles.clear();
+    config.profiles = Config::default().profiles;
+    save_config(&config, None)?;
+    Ok(())
+}
+
+fn save_config(config: &Config, path: Option<&Path>) -> Result<()> {
+    let config_path = match path {
+        Some(p) => p.to_path_buf(),
+        None => {
+            let project_dirs = ProjectDirs::from("", "", "fetchall")
+                .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
+            project_dirs.config_dir().join("config.toml")
+        }
+    };
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let config_content = toml::to_string_pretty(config)?;
+    std::fs::write(&config_path, config_content)?;
+    Ok(())
+}
+
 pub fn load_config(path: Option<&Path>) -> Result<Config> {
     let config_path = match path {
         Some(p) => p.to_path_buf(),
@@ -337,7 +439,7 @@ pub fn load_config(path: Option<&Path>) -> Result<Config> {
         config.general = config_loaded.general;
         config.appearance = config_loaded.appearance;
         config.components = config_loaded.components;
-        config.profiles.extend(config_loaded.profiles);
+        config.profiles = config_loaded.profiles;
         Ok(config)
     } else {
         let config = Config::default();
@@ -348,4 +450,11 @@ pub fn load_config(path: Option<&Path>) -> Result<Config> {
         std::fs::write(&config_path, config_content)?;
         Ok(config)
     }
+}
+
+pub fn get_profiles() -> Vec<String> {
+    let config = load_config(None).unwrap_or_default();
+    let mut profiles: Vec<String> = config.profiles.keys().cloned().collect();
+    profiles.sort();
+    profiles
 }

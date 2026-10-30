@@ -182,8 +182,6 @@ impl Component for SystemComponent<'_> {
                 }
             }
 
-            info.rows.push(OutputRow::Blank);
-
             Ok(info)
         } else {
             Err(anyhow::Error::msg(format!(

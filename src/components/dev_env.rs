@@ -190,8 +190,6 @@ impl Component for DevEnvComponent<'_> {
             }
         }
 
-        output.rows.push(OutputRow::Blank);
-
         Ok(output)
     }
 }

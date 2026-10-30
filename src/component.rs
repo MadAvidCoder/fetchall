@@ -6,6 +6,17 @@ use crate::config::Config;
 use crate::output::ComponentOutput;
 use anyhow::Result;
 
+pub const COMPONENTS: &[(&str, &str)] = &[
+    ("system", "System Stats"),
+    ("git", "Git Repo Info"),
+    ("dev_env", "Development Environment"),
+    ("github_repo", "GitHub Repository"),
+    ("github_profile", "GitHub Profile"),
+    ("user", "Username"),
+    ("hackatime", "Hackatime Stats"),
+    ("weather", "Today's Weather"),
+];
+
 pub trait Component {
     fn title(&self) -> &str;
     fn collect(&self) -> Result<ComponentOutput>;
