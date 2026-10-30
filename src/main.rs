@@ -23,8 +23,10 @@ use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Paragraph, Widget};
 use ratatui::{DefaultTerminal, Frame};
+use std::fmt;
 
 #[derive(Clone, Copy, ValueEnum, Debug)]
+#[repr(usize)]
 enum Profile {
     Default,
     System,
@@ -32,6 +34,48 @@ enum Profile {
     Life,
     Game,
     All,
+}
+impl TryFrom<usize> for Profile {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Profile::Default),
+            1 => Ok(Profile::System),
+            2 => Ok(Profile::Dev),
+            3 => Ok(Profile::Life),
+            4 => Ok(Profile::Game),
+            5 => Ok(Profile::All),
+            _ => Err(()),
+        }
+    }
+}
+
+impl fmt::Display for Profile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Profile::Default => "Default",
+            Profile::System => "System",
+            Profile::Dev => "Dev",
+            Profile::Life => "Life",
+            Profile::Game => "Game",
+            Profile::All => "All",
+        };
+        write!(f, "{name}")
+    }
+}
+impl Profile {
+    const ALL: [Profile; 6] = [
+        Profile::Default,
+        Profile::System,
+        Profile::Dev,
+        Profile::Life,
+        Profile::Game,
+        Profile::All,
+    ];
+    fn iter() -> impl Iterator<Item = Profile> {
+        Self::ALL.into_iter()
+    }
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -86,7 +130,12 @@ enum ConfigScreens {
     MainMenu {
         selected: usize,
     },
-    ProfilesMenu,
+    ProfilesMenu {
+        selected: usize,
+    },
+    ProfileEditor {
+        profile: Profile,
+    },
     ComponentsMenu,
     AppearanceMenu,
     IntegrationsMenu,
@@ -136,11 +185,33 @@ impl ConfigTui {
             KeyCode::Down => {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
                     *selected = (*selected + 1) % 5;
+                } else if let ConfigScreens::ProfileScreen { selected } = &mut self.screen {
+                    *selected = (*selected + 1) % Profile::ALL.len();
                 }
             }
             KeyCode::Up => {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
                     *selected = (*selected + 4) % 5;
+                } else if let ConfigScreens::ProfileScreen { selected } = &mut self.screen {
+                    *selected = (*selected + Profile::ALL.len() - 1) % Profile::ALL.len();
+                }
+            }
+            KeyCode::Enter | KeyCode::Space => {
+                if let ConfigScreens::MainMenu { selected } = &mut self.screen {
+                    match selected {
+                        0 => self.screen = ConfigScreens::ProfilesMenu { selected: 0 },
+                        1 => todo!("Components"),
+                        2 => todo!("Appearance"),
+                        3 => todo!("Integeration"),
+                        4 => {
+                            self.exit = true;
+                            return;
+                        }
+                    };
+                } else if let ConfigScreens::ProfilesMenu { selected } = &mut self.screen {
+                    self.screen = ConfigScreens::ProfileEditor {
+                        profile: Profile::try_from(selected).unwrap_or(Profile::Default),
+                    };
                 }
             }
             _ => {}
@@ -186,12 +257,68 @@ impl ConfigTui {
             .alignment(Alignment::Center)
             .render(area, buf);
     }
+    fn render_profile_editor(&self, area: Rect, buf: &mut Buffer, profile: Profile) {
+        todo!();
+        let lines = vec![Line::from("")];
+    }
+
+    fn render_profiles(&self, area: Rect, buf: &mut Buffer, selected: usize) {
+        let mut lines = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::Styled(
+                "Select a profile to modify",
+                Style::default().fg(Color::White).bold(),
+            ),
+            Line::from(""),
+        ];
+        for profile in Profile::iter() {
+            lines.push(Line::Styled(
+                format!("{}", profile),
+                if selected == profile as usize {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::White)
+                },
+            ))
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from(""));
+        let title = Line::from("  fetchall | Profiles Config  ")
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom = Line::from(
+            " Use arrow keys to navigate, Enter to select a profile, and Esc to exit. ".italic(),
+        )
+        .centered()
+        .style(Style::default().fg(Color::DarkGray));
+
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
     fn render_main_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
         let lines = vec![
             Line::from(""),
             Line::from(""),
             Line::styled(
-                "Profiles",
+                "Profile1s",
                 if selected == 0 {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
@@ -268,7 +395,8 @@ impl Widget for &ConfigTui {
         match self.screen {
             ConfigScreens::Welcome => self.render_welcome(area, buf),
             ConfigScreens::MainMenu { selected } => self.render_main_menu(area, buf, selected),
-            ConfigScreens::ProfilesMenu => todo!(),
+            ConfigScreens::ProfilesMenu { selected } => self.render_profiles(area, buf, selected),
+            ConfigScreens::ProfileEditor => todo!(),
             ConfigScreens::ComponentsMenu => todo!(),
             ConfigScreens::AppearanceMenu => todo!(),
             ConfigScreens::IntegrationsMenu => todo!(),
