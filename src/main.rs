@@ -9,6 +9,9 @@ mod output;
 mod renderer;
 mod styled_text;
 
+use std::sync::mpsc::TryRecvError;
+use std::thread;
+
 use crate::component::{COMPONENTS, Component, get_component_by_name};
 use crate::components::user::UserComponent;
 use crate::output::ComponentOutput;
@@ -21,7 +24,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Paragraph, Widget};
+use ratatui::widgets::{Block, Paragraph, Widget, Wrap};
 use ratatui::{DefaultTerminal, Frame};
 
 #[derive(Debug, clap::Subcommand)]
@@ -123,18 +126,31 @@ enum ConfigScreens {
     LayoutMenu {
         selected: usize,
     },
+    HackatimeLoginScreen {
+        done1: bool,
+        done2: bool,
+        err: Option<String>,
+    },
     ComponentsMenu,
-    IntegrationsMenu,
+    IntegrationsMenu {
+        selected: usize,
+        gh_status: (bool, bool),
+        hac_status: bool,
+    },
 }
 
 #[derive(Default, Debug)]
 struct ConfigTui {
     exit: bool,
     screen: ConfigScreens,
+    rx: Option<std::sync::mpsc::Receiver<Result<(), String>>>,
 }
 impl ConfigTui {
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.exit {
+            if self.rx.is_some() {
+                self.poll_hackatime();
+            }
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_input()?;
         }
@@ -160,7 +176,8 @@ impl ConfigTui {
             || ((key_event.code == KeyCode::Esc || key_event.code == KeyCode::Char('q'))
                 && !matches!(self.screen, ConfigScreens::NewProfileMenu { .. })
                 && !matches!(self.screen, ConfigScreens::RenameProfileMenu { .. })
-                && !matches!(self.screen, ConfigScreens::FileInputMenu { .. }))
+                && !matches!(self.screen, ConfigScreens::FileInputMenu { .. })
+                && !matches!(self.screen, ConfigScreens::HackatimeLoginScreen { .. }))
         {
             self.exit = true;
             return;
@@ -279,6 +296,26 @@ impl ConfigTui {
             }
             return;
         }
+        if let ConfigScreens::HackatimeLoginScreen { done1, done2, .. } = &mut self.screen {
+            match key_event.code {
+                KeyCode::Enter | KeyCode::Char(' ') if *done1 && *done2 => {
+                    self.screen = ConfigScreens::IntegrationsMenu {
+                        selected: 1,
+                        gh_status: github_auth::check_login().unwrap_or((false, false)),
+                        hac_status: hackatime_auth::check_login().unwrap_or(false),
+                    }
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.screen = ConfigScreens::IntegrationsMenu {
+                        selected: 1,
+                        gh_status: github_auth::check_login().unwrap_or((false, false)),
+                        hac_status: hackatime_auth::check_login().unwrap_or(false),
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
 
         match key_event.code {
             KeyCode::Down => {
@@ -320,6 +357,8 @@ impl ConfigTui {
                     *selected = (*selected + 1) % (styled_text::COLOURS.len() + 2);
                 } else if let ConfigScreens::LayoutMenu { selected } = &mut self.screen {
                     *selected = (*selected + 1) % 5;
+                } else if let ConfigScreens::IntegrationsMenu { selected, .. } = &mut self.screen {
+                    *selected = (*selected + 1) % 3;
                 }
             }
             KeyCode::Up => {
@@ -366,6 +405,8 @@ impl ConfigTui {
                         % (styled_text::COLOURS.len() + 2);
                 } else if let ConfigScreens::LayoutMenu { selected } = &mut self.screen {
                     *selected = (*selected + 5 - 1) % 5;
+                } else if let ConfigScreens::IntegrationsMenu { selected, .. } = &mut self.screen {
+                    *selected = (*selected + 3 - 1) % 3;
                 }
             }
             KeyCode::Left if let ConfigScreens::LayoutMenu { selected } = &mut self.screen => {
@@ -443,7 +484,15 @@ impl ConfigTui {
                         0 => self.screen = ConfigScreens::ProfilesMenu { selected: 0 },
                         1 => todo!("Components"),
                         2 => self.screen = ConfigScreens::AppearanceMenu { selected: 0 },
-                        3 => todo!("Integeration"),
+                        3 => {
+                            let hackatime = hackatime_auth::check_login().unwrap_or(false);
+                            let gh = github_auth::check_login().unwrap_or((false, false));
+                            self.screen = ConfigScreens::IntegrationsMenu {
+                                selected: 0,
+                                gh_status: gh,
+                                hac_status: hackatime,
+                            }
+                        }
                         4 => self.exit = true,
                         _ => {}
                     };
@@ -623,10 +672,157 @@ impl ConfigTui {
                         self.screen = ConfigScreens::AppearanceMenu { selected: 2 };
                     }
                 }
+
+                match if let ConfigScreens::IntegrationsMenu {
+                    selected,
+                    gh_status,
+                    hac_status,
+                } = &mut self.screen
+                {
+                    match selected {
+                        0 if !gh_status.0 => 1,
+                        0 if !gh_status.1 => 2,
+                        1 if !*hac_status => 3,
+                        2 => {
+                            self.screen = ConfigScreens::MainMenu { selected: 3 };
+                            0
+                        }
+                        _ => 0,
+                    }
+                } else {
+                    0
+                } {
+                    1 => {
+                        todo!("Github Token")
+                    }
+                    2 => {
+                        todo!("Github app")
+                    }
+                    3 => {
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        thread::spawn(move || {
+                            let code = match hackatime_auth::login_silent() {
+                                Ok(c) => {
+                                    let _ = tx.send(Ok(()));
+                                    c
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Err(e.to_string()));
+                                    return;
+                                }
+                            };
+                            match hackatime_auth::login_silent_2(code) {
+                                Ok(_) => {
+                                    let _ = tx.send(Ok(()));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Err(e.to_string()));
+                                }
+                            };
+                        });
+
+                        self.screen = ConfigScreens::HackatimeLoginScreen {
+                            done1: false,
+                            done2: false,
+                            err: None,
+                        };
+                        self.rx = Some(rx);
+                    }
+                    _ => {}
+                }
             }
 
             _ => {}
         }
+    }
+    fn poll_hackatime(&mut self) {
+        let Some(rx) = &self.rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(())) => {
+                if let ConfigScreens::HackatimeLoginScreen { done1, done2, .. } = &mut self.screen {
+                    if !*done1 {
+                        *done1 = true;
+                    } else if !*done2 {
+                        *done2 = true;
+                    }
+                }
+            }
+            Ok(Err(e)) => {
+                if let ConfigScreens::HackatimeLoginScreen { err, .. } = &mut self.screen {
+                    *err = Some(e);
+                }
+            }
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => {
+                self.rx = None;
+            }
+        }
+    }
+
+    fn render_hackatime_login(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        done1: bool,
+        done2: bool,
+        err: &Option<String>,
+    ) {
+        let title = Line::from("  fetchall | Hackatime Login  ")
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom = Line::from(" Press Esc to cancel authorisation and return to the menu ")
+            .centered()
+            .style(Style::default().fg(Color::DarkGray));
+
+        let url = format!(
+            "https://hackatime.hackclub.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=profile+read",
+            hackatime_auth::CLIENT_ID,
+            hackatime_auth::REDIRECT_URI
+        );
+        let lines = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::from("Please go to the following URL and authorize fetchall-cli:"),
+            Line::from(""),
+            Line::styled(&url, Style::default().fg(Color::Yellow).italic()),
+            Line::from(""),
+            Line::from(if let Some(e) = err {
+                format!("Error: {}", e).red().bold()
+            } else if !done1 {
+                "Waiting for Hackatime callback...".dark_gray().italic()
+            } else if !done2 {
+                "Waiting for token exchange...".dark_gray().italic()
+            } else {
+                "Authorization complete! Press Enter to return."
+                    .green()
+                    .bold()
+            }),
+            Line::from(""),
+            Line::from(""),
+            Line::from(""),
+        ];
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = ([line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8)
+        .min((area.width as usize).saturating_sub(2));
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length(((lines.len() + 2) as u16).min(area.height.saturating_sub(2))),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
     }
 
     fn render_logo_colour(&self, area: Rect, buf: &mut Buffer, selected: usize) {
@@ -932,6 +1128,94 @@ impl ConfigTui {
             Line::from(""),
             Line::from(""),
         ];
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
+    fn render_integrations_menu(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        selected: usize,
+        gh_status: (bool, bool),
+        hacka_status: bool,
+    ) {
+        let lines = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "GitHub",
+                    if selected == 0 {
+                        Style::default().fg(Color::Yellow).bold()
+                    } else {
+                        Style::default().fg(Color::White)
+                    },
+                ),
+                Span::from("  "),
+                if gh_status.0 {
+                    if gh_status.1 {
+                        Span::styled("[ CONNECTED ]", Style::default().fg(Color::Green))
+                    } else {
+                        Span::styled("[ IN PROGRESS ]", Style::default().fg(Color::Yellow))
+                    }
+                } else {
+                    Span::styled("[ NOT CONNECTED ]", Style::default().fg(Color::Red))
+                },
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    "Hackatime",
+                    if selected == 1 {
+                        Style::default().fg(Color::Yellow).bold()
+                    } else {
+                        Style::default().fg(Color::White)
+                    },
+                ),
+                Span::from("  "),
+                if hacka_status {
+                    Span::styled("[ CONNECTED ]", Style::default().fg(Color::Green))
+                } else {
+                    Span::styled("[ NOT CONNECTED ]", Style::default().fg(Color::Red))
+                },
+            ]),
+            Line::from(""),
+            Line::styled(
+                "Back",
+                if selected == 2 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                },
+            ),
+            Line::from(""),
+            Line::from(""),
+        ];
+        let title = Line::from("  fetchall | Integrations  ")
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom = Line::from(
+            " Use arrow keys to navigate, Enter to authenticate, and Esc to exit. ".italic(),
+        )
+        .centered()
+        .style(Style::default().fg(Color::DarkGray));
+
         let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
         let width = [line_max_width, title.width(), title_bottom.width()]
             .into_iter()
@@ -1879,7 +2163,14 @@ impl Widget for &ConfigTui {
             }
             ConfigScreens::LayoutMenu { selected } => self.render_layout_menu(area, buf, *selected),
             ConfigScreens::ComponentsMenu => todo!(),
-            ConfigScreens::IntegrationsMenu => todo!(),
+            ConfigScreens::IntegrationsMenu {
+                selected,
+                hac_status,
+                gh_status,
+            } => self.render_integrations_menu(area, buf, *selected, *gh_status, *hac_status),
+            ConfigScreens::HackatimeLoginScreen { done1, done2, err } => {
+                self.render_hackatime_login(area, buf, *done1, *done2, err)
+            }
         };
     }
 }

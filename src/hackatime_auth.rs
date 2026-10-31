@@ -4,8 +4,8 @@ use tiny_http::{Header, Response, Server};
 
 use crate::styled_text::StyledText;
 
-const CLIENT_ID: &str = "JY5N9DSWmLfAS2s8FubiB2vq4AHu2esBk-tUmN18mlM";
-const REDIRECT_URI: &str = "http://127.0.0.1:8787/hackatime_callback";
+pub const CLIENT_ID: &str = "JY5N9DSWmLfAS2s8FubiB2vq4AHu2esBk-tUmN18mlM";
+pub const REDIRECT_URI: &str = "http://127.0.0.1:8787/hackatime_callback";
 
 pub fn check_login() -> Result<bool> {
     let entry = keyring::Entry::new("fetchall", "hackatime-token")
@@ -35,6 +35,55 @@ pub fn revoke() -> Result<()> {
 
 pub fn get_client() -> Result<Client> {
     Ok(Client::builder().user_agent("fetchall").build()?)
+}
+
+pub fn login_silent() -> Result<String> {
+    if check_login().unwrap_or(false) {
+        return Err(anyhow::anyhow!("Already logged in. Please revoke the existing token first."));
+    }
+    let url = format!(
+        "https://hackatime.hackclub.com/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&scope=profile+read",
+        CLIENT_ID, REDIRECT_URI
+    );
+    open::that(url)?;
+
+    let code = await_callback().context("Hackatime callback failed. Try again later.")?;
+    Ok(code)
+}
+
+pub fn login_silent_2(code: String) -> Result<()> {
+    let client = get_client()?;
+    let token_response = client
+        .post("https://hackatime.hackclub.com/oauth/token")
+        .form(&[
+            ("client_id", CLIENT_ID),
+            ("code", &code),
+            ("grant_type", "authorization_code"),
+            ("redirect_uri", REDIRECT_URI),
+        ])
+        .send()
+        .context("Failed to request Hackatime token. Try again later.")?;
+    if !token_response.status().is_success() {
+        return Err(anyhow::anyhow!(
+            "Failed to get Hackatime token. Status: {}",
+            token_response.status()
+        ));
+    }
+    let binding = token_response
+        .json::<serde_json::Value>()
+        .context("Failed to parse JSON response from Hackatime")?;
+    let token = binding
+        .get("access_token")
+        .context("Failed to get access token from JSON response")?
+        .as_str()
+        .context("Access token is not a string")?;
+
+    let entry = keyring::Entry::new("fetchall", "hackatime-token")
+        .context("Failed to create keyring entry")?;
+    entry
+        .set_password(token)
+        .context("Failed to set keyring password. Check your OS settings")?;
+    Ok(())
 }
 
 pub fn login() -> Result<()> {
