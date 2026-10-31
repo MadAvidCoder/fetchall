@@ -465,3 +465,17 @@ pub fn set_logo(logo: &str) -> Result<()> {
     save_config(&config, None)?;
     Ok(())
 }
+
+pub fn set_logo_colour(colour: &str) -> Result<()> {
+    let mut config = load_config(None)?;
+    config.appearance.logo_colour = colour.to_string();
+    save_config(&config, None)?;
+    Ok(())
+}
+
+pub fn set_colour(colour: &str) -> Result<()> {
+    let mut config = load_config(None)?;
+    config.appearance.colour = colour.to_string();
+    save_config(&config, None)?;
+    Ok(())
+}

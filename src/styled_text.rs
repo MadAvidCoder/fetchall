@@ -1,6 +1,25 @@
 use owo_colors::{OwoColorize, Style};
 use unicode_width::UnicodeWidthStr;
 
+pub const COLOURS: &[&str] = &[
+    "black",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "white",
+    "bright_black",
+    "bright_red",
+    "bright_green",
+    "bright_yellow",
+    "bright_blue",
+    "bright_magenta",
+    "bright_cyan",
+    "bright_white",
+];
+
 macro_rules! style_methods {
     ($($name:ident),* $(,)?) => {
         $(
