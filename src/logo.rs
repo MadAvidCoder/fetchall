@@ -155,23 +155,23 @@ const LOGOS: &[(&str, &str, &str)] = &[
                      .';:cccccccccccc:;,.
                   .;cccccccccccccccccccccc;.
                 .:cccccccccccccccccccccccccc:.
-              .;ccccccccccccc;.:dddl:.;ccccccc;.
-             .:ccccccccccccc;OWMKOOXMWd;ccccccc:.
-            .:ccccccccccccc;KMMc;cc;xMMc;ccccccc:.
-            ,cccccccccccccc;MMM.;cc;;WW:;cccccccc,
-            :cccccccccccccc;MMM.;cccccccccccccccc:
-            :ccccccc;oxOOOo;MMM000k.;cccccccccccc:
-            cccccc;0MMKxdd:;MMMkddc.;cccccccccccc;
-            ccccc;XMO';cccc;MMM.;cccccccccccccccc'
-            ccccc;MMo;ccccc;MMW.;ccccccccccccccc;
-            ccccc;0MNc.ccc.xMMd;ccccccccccccccc;
-            cccccc;dNMWXXXWM0:;cccccccccccccc:,
-            cccccccc;.:odl:.;cccccccccccccc:,.
+              .;ccccccccccccc;⠞      ⠳;ccccccc;.
+             .:ccccccccccccc;          ;ccccccc:.
+            .:ccccccccccccc;    ;cc;    ;ccccccc:.
+            ,cccccccccccccc;   .;cc;;  :;cccccccc,
+            :cccccccccccccc;   .;cccccccccccccccc:
+            :ccccccc;˙˙˙˙˙˙;       .;cccccccccccc:
+            cccccc;        ;       .;cccccccccccc;
+            ccccc;    ;cccc;   .;cccccccccccccccc'
+            ccccc;   ;ccccc;   .;ccccccccccccccc;
+            ccccc;    .ccc.    ;ccccccccccccccc;
+            cccccc;          :;cccccccccccccc:,
+            cccccccc;.:   :.;cccccccccccccc:,.
             ccccccccccccccccccccccccccccc:'.
             :ccccccccccccccccccccccc:;,..
              ':cccccccccccccccc::;,.
         "#},
-        "blue",
+        "bright_blue",
     ),
     (
         "nixos",
