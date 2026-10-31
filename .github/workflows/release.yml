@@ -62,7 +62,7 @@ jobs:
           $version = "${env:GITHUB_REF_NAME}"
 
           mkdir dist
-          Copy-Item "target/release/minimalfetch.exe" "dist/"
+          Copy-Item "target/release/fastfetch.exe" "dist/"
 
           Compress-Archive `
             -Path "dist/fastfetch.exe" `
