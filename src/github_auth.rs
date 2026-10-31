@@ -12,10 +12,10 @@ const TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
 pub const CONTINUE_URL: &str = "https://github.com/apps/fetchall-cli/installations/new";
 
 #[derive(Debug, serde::Deserialize)]
-struct DeviceCodeResponse {
+pub struct DeviceCodeResponse {
     device_code: String,
-    user_code: String,
-    verification_uri: String,
+    pub user_code: String,
+    pub verification_uri: String,
     expires_in: u64,
     interval: u64,
 }
@@ -56,13 +56,15 @@ pub fn check_login() -> Result<(bool, bool)> {
     }
 }
 
-pub fn revoke() -> Result<()> {
+pub fn revoke(silent: bool) -> Result<()> {
     let entry = keyring::Entry::new("fetchall", "github-token")
         .context("Failed to access OS credential storage")?;
     entry
         .delete_credential()
         .context("Failed to delete token from OS credential storage")?;
-    println!("Successfully revoked GitHub authentication.");
+    if !silent {
+        println!("Successfully revoked GitHub authentication.");
+    }
     Ok(())
 }
 
@@ -104,6 +106,66 @@ fn request_access_token(device_code: &str) -> Result<String> {
     }
 
     Err(anyhow::anyhow!("Failed to get access token"))
+}
+
+pub fn silent_login() -> Result<DeviceCodeResponse> {
+    if check_login().unwrap_or((false, false)).0 {
+        return Err(anyhow::anyhow!(
+            "Already logged in. Please revoke the existing token first."
+        ));
+    }
+    let device = request_device_code()?;
+
+    let mut clipboard = Clipboard::new().unwrap();
+    clipboard.set_text(&device.user_code).unwrap();
+
+    open::that(&device.verification_uri)?;
+
+    Ok(device)
+}
+
+pub fn silent_login_2(device: DeviceCodeResponse) -> Result<()> {
+    let started = Instant::now();
+    let mut interval = device.interval.max(1);
+    loop {
+        if started.elapsed() >= Duration::from_secs(device.expires_in) {
+            return Err(anyhow::anyhow!(
+                "Device code expired. Please re-run the command"
+            ));
+        }
+        std::thread::sleep(Duration::from_secs(interval));
+
+        match request_access_token(device.device_code.as_str()) {
+            Ok(token) => {
+                let entry = keyring::Entry::new("fetchall", "github-token")
+                    .context("Failed to create keyring entry")?;
+                entry
+                    .set_password(&token)
+                    .context("Failed to set keyring password")?;
+
+                break;
+            }
+            Err(e) => {
+                if e.to_string().contains("authorization_pending") {
+                    continue;
+                } else if e.to_string().contains("slow_down") {
+                    interval += 5;
+                    continue;
+                } else if e.to_string().contains("access_denied") {
+                    bail!("Github authorisation denied. Please try again later.");
+                } else if e.to_string().contains("expired_token")
+                    || e.to_string().contains("token_expired")
+                {
+                    bail!("Github device code expired. Please rerun the command.");
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+    open::that(CONTINUE_URL)?;
+
+    Ok(())
 }
 
 pub fn login() -> Result<()> {

@@ -23,13 +23,15 @@ pub fn check_login() -> Result<bool> {
     }
 }
 
-pub fn revoke() -> Result<()> {
+pub fn revoke(silent: bool) -> Result<()> {
     let entry = keyring::Entry::new("fetchall", "hackatime-token")
         .context("Failed to access OS credential storage")?;
     entry
         .delete_credential()
         .context("Failed to delete token from OS credential storage")?;
-    println!("Successfully revoked Hackatime authentication.");
+    if !silent {
+        println!("Successfully revoked Hackatime authentication.");
+    }
     Ok(())
 }
 

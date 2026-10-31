@@ -131,6 +131,13 @@ enum ConfigScreens {
         done2: bool,
         err: Option<String>,
     },
+    GitHubLoginScreen {
+        done1: bool,
+        done2: bool,
+        err: Option<String>,
+        url: Option<String>,
+        code: Option<String>,
+    },
     ComponentsMenu,
     IntegrationsMenu {
         selected: usize,
@@ -144,12 +151,16 @@ struct ConfigTui {
     exit: bool,
     screen: ConfigScreens,
     rx: Option<std::sync::mpsc::Receiver<Result<(), String>>>,
+    ghrx: Option<std::sync::mpsc::Receiver<Result<(String, String), String>>>,
 }
 impl ConfigTui {
     fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         while !self.exit {
             if self.rx.is_some() {
                 self.poll_hackatime();
+            }
+            if self.ghrx.is_some() {
+                self.poll_github();
             }
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_input()?;
@@ -177,7 +188,8 @@ impl ConfigTui {
                 && !matches!(self.screen, ConfigScreens::NewProfileMenu { .. })
                 && !matches!(self.screen, ConfigScreens::RenameProfileMenu { .. })
                 && !matches!(self.screen, ConfigScreens::FileInputMenu { .. })
-                && !matches!(self.screen, ConfigScreens::HackatimeLoginScreen { .. }))
+                && !matches!(self.screen, ConfigScreens::HackatimeLoginScreen { .. })
+                && !matches!(self.screen, ConfigScreens::GitHubLoginScreen { .. }))
         {
             self.exit = true;
             return;
@@ -297,6 +309,26 @@ impl ConfigTui {
             return;
         }
         if let ConfigScreens::HackatimeLoginScreen { done1, done2, .. } = &mut self.screen {
+            match key_event.code {
+                KeyCode::Enter | KeyCode::Char(' ') if *done1 && *done2 => {
+                    self.screen = ConfigScreens::IntegrationsMenu {
+                        selected: 1,
+                        gh_status: github_auth::check_login().unwrap_or((false, false)),
+                        hac_status: hackatime_auth::check_login().unwrap_or(false),
+                    }
+                }
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    self.screen = ConfigScreens::IntegrationsMenu {
+                        selected: 1,
+                        gh_status: github_auth::check_login().unwrap_or((false, false)),
+                        hac_status: hackatime_auth::check_login().unwrap_or(false),
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+        if let ConfigScreens::GitHubLoginScreen { done1, done2, .. } = &mut self.screen {
             match key_event.code {
                 KeyCode::Enter | KeyCode::Char(' ') if *done1 && *done2 => {
                     self.screen = ConfigScreens::IntegrationsMenu {
@@ -482,7 +514,7 @@ impl ConfigTui {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
                     match selected {
                         0 => self.screen = ConfigScreens::ProfilesMenu { selected: 0 },
-                        1 => todo!("Components"),
+                        1 => self.screen = ConfigScreens::ComponentsMenu,
                         2 => self.screen = ConfigScreens::AppearanceMenu { selected: 0 },
                         3 => {
                             let hackatime = hackatime_auth::check_login().unwrap_or(false);
@@ -671,67 +703,123 @@ impl ConfigTui {
                     } else if *selected == 4 {
                         self.screen = ConfigScreens::AppearanceMenu { selected: 2 };
                     }
-                }
+                } else {
+                    match if let ConfigScreens::IntegrationsMenu {
+                        selected,
+                        gh_status,
+                        hac_status,
+                    } = &mut self.screen
+                    {
+                        match selected {
+                            0 if !gh_status.0 => 1,
+                            0 if !gh_status.1 => 2,
+                            1 if !*hac_status => 3,
+                            2 => {
+                                self.screen = ConfigScreens::MainMenu { selected: 3 };
+                                0
+                            }
+                            _ => 0,
+                        }
+                    } else {
+                        0
+                    } {
+                        1 => {
+                            let (tx, rx) = std::sync::mpsc::channel();
+                            thread::spawn(move || {
+                                let device = match github_auth::silent_login() {
+                                    Ok(d) => {
+                                        let _ = tx.send(Ok((
+                                            d.verification_uri.clone(),
+                                            d.user_code.clone(),
+                                        )));
+                                        d
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Err(e.to_string()));
+                                        return;
+                                    }
+                                };
+                                match github_auth::silent_login_2(device) {
+                                    Ok(_) => {
+                                        let _ = tx.send(Ok((String::new(), String::new())));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Err(e.to_string()));
+                                    }
+                                };
+                            });
+                            self.screen = ConfigScreens::GitHubLoginScreen {
+                                done1: false,
+                                done2: false,
+                                url: None,
+                                code: None,
+                                err: None,
+                            };
+                            self.ghrx = Some(rx);
+                        }
+                        2 => {
+                            self.screen = ConfigScreens::GitHubLoginScreen {
+                                done1: true,
+                                done2: true,
+                                url: None,
+                                code: None,
+                                err: None,
+                            };
+                            open::that(github_auth::CONTINUE_URL).unwrap_or(());
+                        }
+                        3 => {
+                            let (tx, rx) = std::sync::mpsc::channel();
+                            thread::spawn(move || {
+                                let code = match hackatime_auth::login_silent() {
+                                    Ok(c) => {
+                                        let _ = tx.send(Ok(()));
+                                        c
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Err(e.to_string()));
+                                        return;
+                                    }
+                                };
+                                match hackatime_auth::login_silent_2(code) {
+                                    Ok(_) => {
+                                        let _ = tx.send(Ok(()));
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Err(e.to_string()));
+                                    }
+                                };
+                            });
 
-                match if let ConfigScreens::IntegrationsMenu {
+                            self.screen = ConfigScreens::HackatimeLoginScreen {
+                                done1: false,
+                                done2: false,
+                                err: None,
+                            };
+                            self.rx = Some(rx);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            KeyCode::Char('d')
+                if let ConfigScreens::IntegrationsMenu {
                     selected,
                     gh_status,
                     hac_status,
-                } = &mut self.screen
-                {
-                    match selected {
-                        0 if !gh_status.0 => 1,
-                        0 if !gh_status.1 => 2,
-                        1 if !*hac_status => 3,
-                        2 => {
-                            self.screen = ConfigScreens::MainMenu { selected: 3 };
-                            0
-                        }
-                        _ => 0,
+                } = &mut self.screen =>
+            {
+                match selected {
+                    0 if gh_status.0 => {
+                        github_auth::revoke(true).unwrap();
+                        *gh_status = github_auth::check_login().unwrap_or((false, false));
                     }
-                } else {
-                    0
-                } {
-                    1 => {
-                        todo!("Github Token")
-                    }
-                    2 => {
-                        todo!("Github app")
-                    }
-                    3 => {
-                        let (tx, rx) = std::sync::mpsc::channel();
-                        thread::spawn(move || {
-                            let code = match hackatime_auth::login_silent() {
-                                Ok(c) => {
-                                    let _ = tx.send(Ok(()));
-                                    c
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(Err(e.to_string()));
-                                    return;
-                                }
-                            };
-                            match hackatime_auth::login_silent_2(code) {
-                                Ok(_) => {
-                                    let _ = tx.send(Ok(()));
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(Err(e.to_string()));
-                                }
-                            };
-                        });
-
-                        self.screen = ConfigScreens::HackatimeLoginScreen {
-                            done1: false,
-                            done2: false,
-                            err: None,
-                        };
-                        self.rx = Some(rx);
+                    1 if *hac_status => {
+                        hackatime_auth::revoke(true).unwrap();
+                        *hac_status = hackatime_auth::check_login().unwrap_or(false);
                     }
                     _ => {}
                 }
             }
-
             _ => {}
         }
     }
@@ -757,6 +845,40 @@ impl ConfigTui {
             Err(TryRecvError::Empty) => {}
             Err(TryRecvError::Disconnected) => {
                 self.rx = None;
+            }
+        }
+    }
+    fn poll_github(&mut self) {
+        let Some(rx) = &self.ghrx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok((url, code))) => {
+                if let ConfigScreens::GitHubLoginScreen {
+                    done1,
+                    done2,
+                    url: log_url,
+                    code: log_code,
+                    ..
+                } = &mut self.screen
+                {
+                    if !*done1 {
+                        *done1 = true;
+                        *log_url = Some(url);
+                        *log_code = Some(code);
+                    } else if !*done2 {
+                        *done2 = true;
+                    }
+                }
+            }
+            Ok(Err(e)) => {
+                if let ConfigScreens::GitHubLoginScreen { err, .. } = &mut self.screen {
+                    *err = Some(e);
+                }
+            }
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => {
+                self.ghrx = None;
             }
         }
     }
@@ -802,6 +924,122 @@ impl ConfigTui {
             Line::from(""),
             Line::from(""),
         ];
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = ([line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8)
+        .min((area.width as usize).saturating_sub(2));
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length(((lines.len() + 2) as u16).min(area.height.saturating_sub(2))),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
+    fn render_github_login(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        done1: bool,
+        done2: bool,
+        code: &Option<String>,
+        url: &Option<String>,
+        err: &Option<String>,
+    ) {
+        let title = Line::from("  fetchall | GitHub Login  ")
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom = Line::from(" Press Esc to cancel authorisation and return to the menu ")
+            .centered()
+            .style(Style::default().fg(Color::DarkGray));
+
+        let lines = if let Some(e) = err {
+            vec![
+                Line::from(""),
+                Line::from(""),
+                Line::from(format!("Error: {}", e).red().bold()),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+            ]
+        } else if !done1 {
+            vec![
+                Line::from(""),
+                Line::from(""),
+                Line::from("Obtaining device code. Please wait..."),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+                Line::from(""),
+            ]
+        } else if !done2 && let Some(url) = url {
+            vec![
+                Line::from(""),
+                Line::from(""),
+                Line::from("Please go to the following URL and authorize fetchall-cli:"),
+                Line::styled(url, Style::default().fg(Color::Yellow).italic()),
+                Line::from(""),
+                Line::from(vec![
+                    "Enter the following code when prompted ".bold(),
+                    "(copied to clipboard)".italic().dark_gray(),
+                ]),
+                Line::from(
+                    code.as_ref()
+                        .unwrap_or(&String::new())
+                        .to_string()
+                        .bold()
+                        .yellow(),
+                ),
+                Line::from(""),
+                Line::from(""),
+                Line::from("Waiting for token exchange...".dark_gray().italic()),
+                Line::from(""),
+            ]
+        } else {
+            vec![
+                Line::from(""),
+                Line::from(""),
+                Line::from(
+                    "CLI token succesfully obtained and saved to OS store."
+                        .green()
+                        .bold(),
+                ),
+                Line::from(""),
+                Line::from(""),
+                Line::from("To complete setup, install fetchall-cli to your GitHub Account:"),
+                Line::styled(
+                    github_auth::CONTINUE_URL,
+                    Style::default().fg(Color::Yellow).italic(),
+                ),
+                Line::from(""),
+                Line::from(""),
+                Line::from(
+                    "Once you are done, press Enter to return"
+                        .dark_gray()
+                        .italic(),
+                ),
+                Line::from(""),
+            ]
+        };
         let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
         let width = ([line_max_width, title.width(), title_bottom.width()]
             .into_iter()
@@ -1210,11 +1448,10 @@ impl ConfigTui {
         ];
         let title = Line::from("  fetchall | Integrations  ")
             .style(Style::default().fg(Color::Cyan).bold());
-        let title_bottom = Line::from(
-            " Use arrow keys to navigate, Enter to authenticate, and Esc to exit. ".italic(),
-        )
-        .centered()
-        .style(Style::default().fg(Color::DarkGray));
+        let title_bottom =
+            Line::from(" Use Enter to authenticate, D to revoke, and Esc to exit. ".italic())
+                .centered()
+                .style(Style::default().fg(Color::DarkGray));
 
         let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
         let width = [line_max_width, title.width(), title_bottom.width()]
@@ -2171,6 +2408,13 @@ impl Widget for &ConfigTui {
             ConfigScreens::HackatimeLoginScreen { done1, done2, err } => {
                 self.render_hackatime_login(area, buf, *done1, *done2, err)
             }
+            ConfigScreens::GitHubLoginScreen {
+                done1,
+                done2,
+                err,
+                url,
+                code,
+            } => self.render_github_login(area, buf, *done1, *done2, code, url, err),
         };
     }
 }
@@ -2218,7 +2462,7 @@ fn main() -> Result<()> {
                         }
                     }
                 } else if revoke {
-                    github_auth::revoke()?;
+                    github_auth::revoke(false)?;
                 }
                 return Ok(());
             }
@@ -2245,7 +2489,7 @@ fn main() -> Result<()> {
                         println!("` to authenticate.");
                     }
                 } else if revoke {
-                    hackatime_auth::revoke()?;
+                    hackatime_auth::revoke(false)?;
                 }
                 return Ok(());
             }
