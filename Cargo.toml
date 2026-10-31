@@ -2,6 +2,7 @@
 name = "fetchall"
 version = "1.1.0"
 edition = "2024"
+license-file = "/LICENSE"
 authors = ["MadAvidCoder"]
 description = "A neofetch inspired system information tool, which compiles information from different sources."
 readme = "README.md"
