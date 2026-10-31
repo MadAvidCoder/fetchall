@@ -42,29 +42,33 @@ _Fetchall_ is designed to be modular, with every source of information forming a
 Currently, fetchall includes the following components:
 
 - **Username**
+  
   ![alt text](images/username.png)
 
   This is a minimal one-line component which displays your username and device hostname. Included by default in all profiles.
 
 - **System information**
+  
   ![alt text](images/sys.png)
 
   The system information component compiles key information about your current system, including the OS, uptime, CPU, RAM, and more. It mimics the core features of neofetch, and is the base of _fetchall_.
 
 - **Development Environment**
+  
   ![alt text](images/dev.png)
 
   This component intelligently detects whether you are inside a folder with files associated with a known language, and shows the versions of relevant tools and compilers for that language. It currently supports Rust, Node.js, Python _(if you have a pyproject.toml)_, Go, C/C++ and Java.
 
 - **Git**
+  
   ![alt text](images/git.png)
 
   If you are inside a Git directory, _fetchall_ can display working tree changes, the latest commit, and incoming/outgoing changes to the upstream branch.
 
 - **Github Profile**
 
-  > [!TIP]
-  > _Connect to GitHub with `fetchall auth github` to use._
+> [!TIP]
+> _Connect to GitHub with `fetchall auth github` to use._
 
   ![alt text](images/ghprof.png)
 
@@ -72,8 +76,8 @@ Currently, fetchall includes the following components:
 
 - **Github Repo**
 
-  > [!TIP]
-  > _Connect to GitHub with `fetchall auth github` to use._
+> [!TIP]
+> _Connect to GitHub with `fetchall auth github` to use._
 
   ![alt text](images/ghrepo.png)
 
@@ -81,8 +85,8 @@ Currently, fetchall includes the following components:
 
 - **Hackatime**
 
-  > [!TIP]
-  > _Connect to Hackatime with `fetchall auth hackatime` to use._
+> [!TIP]
+> _Connect to Hackatime with `fetchall auth hackatime` to use._
 
   ![alt text](images/hackatime.png)
 
@@ -90,8 +94,8 @@ Currently, fetchall includes the following components:
 
 - Weather information
 
-  > [!NOTE]
-  > _No API authentication needed_
+> [!NOTE]
+> _No API authentication needed_
 
   ![alt text](images/weather.png)
 
