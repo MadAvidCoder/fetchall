@@ -399,7 +399,7 @@ impl Component for GithubRepoComponent<'_> {
                             .bold(),
                         value: StyledText::new(format!(
                             "◔ {}/{} completed",
-                            complete,
+                            running,
                             complete + running
                         )),
                     });
