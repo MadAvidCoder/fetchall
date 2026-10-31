@@ -15,17 +15,17 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             ext: tar.gz
-            bin: minimalfetch
+            bin: fastfetch
 
           - os: macos-latest
             target: x86_64-apple-darwin
             ext: tar.gz
-            bin: minimalfetch
+            bin: fastfetch
 
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             ext: zip
-            bin: minimalfetch.exe
+            bin: fastfetch.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
           cp target/release/${{ matrix.bin }} dist/
 
           tar -czf \
-            "minimalfetch-${VERSION}-${{ matrix.target }}.${{ matrix.ext }}" \
+            "fastfetch-${VERSION}-${{ matrix.target }}.${{ matrix.ext }}" \
             -C dist ${{ matrix.bin }}
 
       - name: Package (Windows)
@@ -65,8 +65,8 @@ jobs:
           Copy-Item "target/release/minimalfetch.exe" "dist/"
 
           Compress-Archive `
-            -Path "dist/minimalfetch.exe" `
-            -DestinationPath "minimalfetch-$version-${{ matrix.target }}.${{ matrix.ext }}"
+            -Path "dist/fastfetch.exe" `
+            -DestinationPath "fastfetch-$version-${{ matrix.target }}.${{ matrix.ext }}"
 
       # -------------------------
       # UPLOAD
@@ -74,7 +74,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: minimalfetch-${{ matrix.target }}
+          name: fastfetch-${{ matrix.target }}
           path: |
             *.tar.gz
             *.zip
