@@ -361,15 +361,12 @@ impl Component for GithubRepoComponent<'_> {
             let complete = actions
                 .iter()
                 .filter(|c| {
-                    matches!(
-                        c.get("status")
-                            .and_then(|conclusion| conclusion.as_str())
-                            .unwrap_or(""),
-                        "completed"
-                    )
+                    c.get("status")
+                        .and_then(|conclusion| conclusion.as_str())
+                        .unwrap_or("")
+                        == "completed"
                 })
                 .count();
-
             let running = actions
                 .iter()
                 .filter(|c| {
@@ -399,7 +396,7 @@ impl Component for GithubRepoComponent<'_> {
                             .bold(),
                         value: StyledText::new(format!(
                             "◔ {}/{} completed",
-                            running,
+                            complete,
                             complete + running
                         )),
                     });
@@ -431,7 +428,7 @@ impl Component for GithubRepoComponent<'_> {
                         label: StyledText::new("actions".to_string()).bright_blue().bold(),
                         value: StyledText::new(format!(
                             "◔ {}/{} completed",
-                            running,
+                            complete,
                             complete + running
                         )),
                     });
