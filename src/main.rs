@@ -352,7 +352,7 @@ impl ConfigTui {
         match key_event.code {
             KeyCode::Down => {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
-                    *selected = (*selected + 1) % 5;
+                    *selected = (*selected + 1) % 4;
                 } else if let ConfigScreens::ProfilesMenu { selected } = &mut self.screen {
                     *selected = (*selected + 1) % (config::get_profiles().len() + 3);
                 } else if let ConfigScreens::ProfileEditor { selected, .. } = &mut self.screen {
@@ -395,7 +395,7 @@ impl ConfigTui {
             }
             KeyCode::Up => {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
-                    *selected = (*selected + 5 - 1) % 5;
+                    *selected = (*selected + 4 - 1) % 4;
                 } else if let ConfigScreens::ProfilesMenu { selected } = &mut self.screen {
                     *selected = (*selected + config::get_profiles().len() + 3 - 1)
                         % (config::get_profiles().len() + 3);
@@ -514,9 +514,9 @@ impl ConfigTui {
                 if let ConfigScreens::MainMenu { selected } = &mut self.screen {
                     match selected {
                         0 => self.screen = ConfigScreens::ProfilesMenu { selected: 0 },
-                        1 => self.screen = ConfigScreens::ComponentsMenu,
-                        2 => self.screen = ConfigScreens::AppearanceMenu { selected: 0 },
-                        3 => {
+                        // 1 => self.screen = ConfigScreens::ComponentsMenu,
+                        1 => self.screen = ConfigScreens::AppearanceMenu { selected: 0 },
+                        2 => {
                             let hackatime = hackatime_auth::check_login().unwrap_or(false);
                             let gh = github_auth::check_login().unwrap_or((false, false));
                             self.screen = ConfigScreens::IntegrationsMenu {
@@ -525,7 +525,7 @@ impl ConfigTui {
                                 hac_status: hackatime,
                             }
                         }
-                        4 => self.exit = true,
+                        3 => self.exit = true,
                         _ => {}
                     };
                 } else if let ConfigScreens::ProfilesMenu { selected } = &mut self.screen {
@@ -2294,8 +2294,16 @@ impl ConfigTui {
                     Style::default().fg(Color::White)
                 },
             ),
+            // Line::styled(
+            //     "Components",
+            //     if selected == 1 {
+            //         Style::default().fg(Color::Yellow).bold()
+            //     } else {
+            //         Style::default().fg(Color::White)
+            //     },
+            // ),
             Line::styled(
-                "Components",
+                "Appearance",
                 if selected == 1 {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
@@ -2303,16 +2311,8 @@ impl ConfigTui {
                 },
             ),
             Line::styled(
-                "Appearance",
-                if selected == 2 {
-                    Style::default().fg(Color::Yellow).bold()
-                } else {
-                    Style::default().fg(Color::White)
-                },
-            ),
-            Line::styled(
                 "Integrations",
-                if selected == 3 {
+                if selected == 2 {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
                     Style::default().fg(Color::White)
@@ -2321,7 +2321,7 @@ impl ConfigTui {
             Line::from(""),
             Line::styled(
                 "Exit",
-                if selected == 4 {
+                if selected == 3 {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
                     Style::default().fg(Color::DarkGray)
