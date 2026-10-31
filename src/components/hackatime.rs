@@ -11,6 +11,7 @@ pub struct HackatimeComponent<'a> {
     config: &'a HackatimeConfig,
     colour: &'a str,
     show_section_titles: &'a bool,
+    show_section_gap: &'a bool,
 }
 
 impl<'a> HackatimeComponent<'a> {
@@ -18,11 +19,13 @@ impl<'a> HackatimeComponent<'a> {
         config: &'a HackatimeConfig,
         colour: &'a str,
         show_section_titles: &'a bool,
+        show_section_gap: &'a bool,
     ) -> Self {
         Self {
             config,
             colour,
             show_section_titles,
+            show_section_gap,
         }
     }
 }
@@ -280,6 +283,10 @@ impl Component for HackatimeComponent<'_> {
                     })
                 }
             }
+        }
+
+        if *self.show_section_gap {
+            output.rows.push(OutputRow::Blank);
         }
 
         Ok(output)

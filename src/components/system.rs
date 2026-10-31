@@ -10,14 +10,21 @@ pub struct SystemComponent<'a> {
     config: &'a SystemConfig,
     colour: &'a str,
     show_section_titles: &'a bool,
+    show_section_gap: &'a bool,
 }
 
 impl<'a> SystemComponent<'a> {
-    pub fn new(config: &'a SystemConfig, colour: &'a str, show_section_titles: &'a bool) -> Self {
+    pub fn new(
+        config: &'a SystemConfig,
+        colour: &'a str,
+        show_section_titles: &'a bool,
+        show_section_gap: &'a bool,
+    ) -> Self {
         Self {
             config,
             colour,
             show_section_titles,
+            show_section_gap,
         }
     }
 }
@@ -180,6 +187,10 @@ impl Component for SystemComponent<'_> {
                         value: StyledText::new(format!("{} ({:.1}%)", cpu_name, cpu_usage)),
                     });
                 }
+            }
+
+            if *self.show_section_gap {
+                info.rows.push(OutputRow::Blank);
             }
 
             Ok(info)

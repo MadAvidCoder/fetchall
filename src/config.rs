@@ -99,6 +99,7 @@ pub struct AppearanceConfig {
     pub logo_colour: String,
     pub colour: String,
     pub show_section_titles: bool,
+    pub show_section_gap: bool,
     pub logo_gap: usize,
     pub label_gap: usize,
 }
@@ -112,6 +113,7 @@ impl Default for AppearanceConfig {
             show_section_titles: true,
             logo_gap: 4,
             label_gap: 2,
+            show_section_gap: true,
         }
     }
 }
@@ -476,6 +478,34 @@ pub fn set_logo_colour(colour: &str) -> Result<()> {
 pub fn set_colour(colour: &str) -> Result<()> {
     let mut config = load_config(None)?;
     config.appearance.colour = colour.to_string();
+    save_config(&config, None)?;
+    Ok(())
+}
+
+pub fn set_logo_gap(gap: usize) -> Result<()> {
+    let mut config = load_config(None)?;
+    config.appearance.logo_gap = gap;
+    save_config(&config, None)?;
+    Ok(())
+}
+
+pub fn set_label_gap(gap: usize) -> Result<()> {
+    let mut config = load_config(None)?;
+    config.appearance.label_gap = gap;
+    save_config(&config, None)?;
+    Ok(())
+}
+
+pub fn set_title_visibility(visible: bool) -> Result<()> {
+    let mut config = load_config(None)?;
+    config.appearance.show_section_titles = visible;
+    save_config(&config, None)?;
+    Ok(())
+}
+
+pub fn set_section_gap(visible: bool) -> Result<()> {
+    let mut config = load_config(None)?;
+    config.appearance.show_section_gap = visible;
     save_config(&config, None)?;
     Ok(())
 }

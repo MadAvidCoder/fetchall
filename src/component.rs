@@ -31,22 +31,26 @@ pub fn get_component_by_name<'a>(
             &config.components.system,
             &config.appearance.colour,
             &config.appearance.show_section_titles,
+            &config.appearance.show_section_gap,
         ))),
         "git" => Some(Box::new(GitComponent::new(
             &config.components.git,
             &config.appearance.colour,
             &config.appearance.show_section_titles,
+            &config.appearance.show_section_gap,
         ))),
         "dev_env" => Some(Box::new(DevEnvComponent::new(
             &config.components.dev_env,
             &config.appearance.colour,
             &config.appearance.show_section_titles,
+            &config.appearance.show_section_gap,
         ))),
         "github_repo" => Some(Box::new(
             crate::components::github_repo::GithubRepoComponent::new(
                 &config.components.github_repo,
                 &config.appearance.colour,
                 &config.appearance.show_section_titles,
+                &config.appearance.show_section_gap,
             ),
         )),
         "github_profile" => Some(Box::new(
@@ -54,22 +58,26 @@ pub fn get_component_by_name<'a>(
                 &config.components.github_profile,
                 &config.appearance.colour,
                 &config.appearance.show_section_titles,
+                &config.appearance.show_section_gap,
             ),
         )),
         "user" => Some(Box::new(UserComponent::new(
             &config.components.user,
             &config.appearance.colour,
             &config.appearance.show_section_titles,
+            &config.appearance.show_section_gap,
         ))),
         "hackatime" => Some(Box::new(HackatimeComponent::new(
             &config.components.hackatime,
             &config.appearance.colour,
             &config.appearance.show_section_titles,
+            &config.appearance.show_section_gap,
         ))),
         "weather" => Some(Box::new(WeatherComponent::new(
             &config.components.weather,
             &config.appearance.colour,
             &config.appearance.show_section_titles,
+            &config.appearance.show_section_gap,
         ))),
         _ => None,
     }

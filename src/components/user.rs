@@ -12,14 +12,21 @@ pub struct UserComponent<'a> {
     config: &'a UserConfig,
     colour: &'a str,
     _show_section_titles: &'a bool,
+    show_section_gap: &'a bool,
 }
 
 impl<'a> UserComponent<'a> {
-    pub fn new(config: &'a UserConfig, colour: &'a str, show_section_titles: &'a bool) -> Self {
+    pub fn new(
+        config: &'a UserConfig,
+        colour: &'a str,
+        _show_section_titles: &'a bool,
+        show_section_gap: &'a bool,
+    ) -> Self {
         Self {
             config,
             colour,
-            _show_section_titles: show_section_titles,
+            _show_section_titles,
+            show_section_gap,
         }
     }
 }
@@ -43,43 +50,44 @@ impl Component for UserComponent<'_> {
         } else {
             None
         };
-        Ok(ComponentOutput {
-            rows: vec![OutputRow::Section(
-                if let (Some(username), Some(hostname)) = (username.as_deref(), hostname.as_deref())
-                {
-                    StyledText::new(format!("{username}@{hostname}"))
+        let mut rows = vec![OutputRow::Section(
+            if let (Some(username), Some(hostname)) = (username.as_deref(), hostname.as_deref()) {
+                StyledText::new(format!("{username}@{hostname}"))
+                    .bold()
+                    .italic()
+                    .bright_red()
+            } else if let Some(username) = username {
+                if self.colour != "auto" {
+                    StyledText::new(username)
+                        .apply_style(self.colour)
                         .bold()
                         .italic()
-                        .bright_red()
-                } else if let Some(username) = username {
-                    if self.colour != "auto" {
-                        StyledText::new(username)
-                            .apply_style(self.colour)
-                            .bold()
-                            .italic()
-                    } else {
-                        StyledText::new(username).bold().italic().bright_red()
-                    }
-                } else if let Some(hostname) = hostname {
-                    if self.colour != "auto" {
-                        StyledText::new(hostname)
-                            .apply_style(self.colour)
-                            .bold()
-                            .italic()
-                    } else {
-                        StyledText::new(hostname).bold().italic().bright_red()
-                    }
                 } else {
-                    if self.colour != "auto" {
-                        StyledText::new("Unknown")
-                            .apply_style(self.colour)
-                            .bold()
-                            .italic()
-                    } else {
-                        StyledText::new("Unknown").bold().italic().bright_red()
-                    }
-                },
-            )],
-        })
+                    StyledText::new(username).bold().italic().bright_red()
+                }
+            } else if let Some(hostname) = hostname {
+                if self.colour != "auto" {
+                    StyledText::new(hostname)
+                        .apply_style(self.colour)
+                        .bold()
+                        .italic()
+                } else {
+                    StyledText::new(hostname).bold().italic().bright_red()
+                }
+            } else {
+                if self.colour != "auto" {
+                    StyledText::new("Unknown")
+                        .apply_style(self.colour)
+                        .bold()
+                        .italic()
+                } else {
+                    StyledText::new("Unknown").bold().italic().bright_red()
+                }
+            },
+        )];
+        if *self.show_section_gap {
+            rows.push(OutputRow::Blank);
+        }
+        Ok(ComponentOutput { rows })
     }
 }

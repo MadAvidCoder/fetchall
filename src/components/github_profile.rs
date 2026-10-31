@@ -11,6 +11,7 @@ pub struct GithubProfileComponent<'a> {
     config: &'a GithubProfileConfig,
     colour: &'a str,
     show_section_titles: &'a bool,
+    show_section_gap: &'a bool,
 }
 
 impl<'a> GithubProfileComponent<'a> {
@@ -18,11 +19,13 @@ impl<'a> GithubProfileComponent<'a> {
         config: &'a GithubProfileConfig,
         colour: &'a str,
         show_section_titles: &'a bool,
+        show_section_gap: &'a bool,
     ) -> Self {
         Self {
             config,
             colour,
             show_section_titles,
+            show_section_gap,
         }
     }
 }
@@ -270,6 +273,10 @@ impl Component for GithubProfileComponent<'_> {
                     value: StyledText::new(format!("{}d | {}w | {} total", day, week, all)),
                 });
             }
+        }
+
+        if *self.show_section_gap {
+            output.rows.push(OutputRow::Blank);
         }
 
         Ok(output)

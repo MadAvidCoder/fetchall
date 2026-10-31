@@ -14,14 +14,21 @@ pub struct WeatherComponent<'a> {
     config: &'a WeatherConfig,
     colour: &'a str,
     show_section_titles: &'a bool,
+    show_section_gap: &'a bool,
 }
 
 impl<'a> WeatherComponent<'a> {
-    pub fn new(config: &'a WeatherConfig, colour: &'a str, show_section_titles: &'a bool) -> Self {
+    pub fn new(
+        config: &'a WeatherConfig,
+        colour: &'a str,
+        show_section_titles: &'a bool,
+        show_section_gap: &'a bool,
+    ) -> Self {
         Self {
             config,
             colour,
             show_section_titles,
+            show_section_gap,
         }
     }
 }
@@ -291,6 +298,9 @@ impl Component for WeatherComponent<'_> {
                     )),
                 })
             }
+        }
+        if *self.show_section_gap {
+            output.rows.push(OutputRow::Blank);
         }
 
         Ok(output)

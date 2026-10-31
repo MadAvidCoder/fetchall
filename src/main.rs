@@ -318,6 +318,8 @@ impl ConfigTui {
                     *selected = (*selected + 1) % (styled_text::COLOURS.len() + 2);
                 } else if let ConfigScreens::MainColourMenu { selected } = &mut self.screen {
                     *selected = (*selected + 1) % (styled_text::COLOURS.len() + 2);
+                } else if let ConfigScreens::LayoutMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 1) % 5;
                 }
             }
             KeyCode::Up => {
@@ -362,6 +364,50 @@ impl ConfigTui {
                 } else if let ConfigScreens::MainColourMenu { selected } = &mut self.screen {
                     *selected = (*selected + styled_text::COLOURS.len() + 2 - 1)
                         % (styled_text::COLOURS.len() + 2);
+                } else if let ConfigScreens::LayoutMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 5 - 1) % 5;
+                }
+            }
+            KeyCode::Left if let ConfigScreens::LayoutMenu { selected } = &mut self.screen => {
+                if *selected == 1 {
+                    config::set_logo_gap(
+                        config::load_config(None)
+                            .unwrap()
+                            .appearance
+                            .logo_gap
+                            .saturating_sub(1),
+                    )
+                    .unwrap()
+                } else if *selected == 2 {
+                    config::set_label_gap(
+                        config::load_config(None)
+                            .unwrap()
+                            .appearance
+                            .label_gap
+                            .saturating_sub(1),
+                    )
+                    .unwrap()
+                }
+            }
+            KeyCode::Right if let ConfigScreens::LayoutMenu { selected } = &mut self.screen => {
+                if *selected == 1 {
+                    config::set_logo_gap(
+                        config::load_config(None)
+                            .unwrap()
+                            .appearance
+                            .logo_gap
+                            .saturating_add(1),
+                    )
+                    .unwrap()
+                } else if *selected == 2 {
+                    config::set_label_gap(
+                        config::load_config(None)
+                            .unwrap()
+                            .appearance
+                            .label_gap
+                            .saturating_add(1),
+                    )
+                    .unwrap()
                 }
             }
             KeyCode::Char('m') => {
@@ -532,8 +578,8 @@ impl ConfigTui {
                     self.screen = ConfigScreens::LogoMenu { selected: 1 };
                 } else if let ConfigScreens::ColourMenu { selected } = &mut self.screen {
                     match selected {
-                        0 => self.screen = ConfigScreens::LogoColourMenu { selected: 0 },
-                        1 => self.screen = ConfigScreens::MainColourMenu { selected: 0 },
+                        1 => self.screen = ConfigScreens::LogoColourMenu { selected: 0 },
+                        0 => self.screen = ConfigScreens::MainColourMenu { selected: 0 },
                         2 => {
                             config::set_colour("auto").unwrap();
                             config::set_logo_colour("auto").unwrap();
@@ -548,14 +594,34 @@ impl ConfigTui {
                     } else if *selected <= styled_text::COLOURS.len() {
                         config::set_logo_colour(styled_text::COLOURS[*selected - 1]).unwrap();
                     }
-                    self.screen = ConfigScreens::ColourMenu { selected: 0 };
+                    self.screen = ConfigScreens::ColourMenu { selected: 1 };
                 } else if let ConfigScreens::MainColourMenu { selected } = &mut self.screen {
                     if *selected == 0 {
                         config::set_colour("auto").unwrap();
                     } else if *selected <= styled_text::COLOURS.len() {
                         config::set_colour(styled_text::COLOURS[*selected - 1]).unwrap();
                     }
-                    self.screen = ConfigScreens::ColourMenu { selected: 1 };
+                    self.screen = ConfigScreens::ColourMenu { selected: 0 };
+                } else if let ConfigScreens::LayoutMenu { selected } = &mut self.screen {
+                    if *selected == 0 {
+                        config::set_title_visibility(
+                            !config::load_config(None)
+                                .unwrap()
+                                .appearance
+                                .show_section_titles,
+                        )
+                        .unwrap();
+                    } else if *selected == 3 {
+                        config::set_section_gap(
+                            !config::load_config(None)
+                                .unwrap()
+                                .appearance
+                                .show_section_gap,
+                        )
+                        .unwrap();
+                    } else if *selected == 4 {
+                        self.screen = ConfigScreens::AppearanceMenu { selected: 2 };
+                    }
                 }
             }
 
@@ -1248,9 +1314,9 @@ impl ConfigTui {
                 Span::from("\n"),
                 Span::styled(
                     if enabled.contains(&component.0.to_string()) {
-                        "  ON"
+                        " [ ON ]"
                     } else {
-                        "  OFF"
+                        "  [ OFF ]"
                     },
                     if enabled.contains(&component.0.to_string()) {
                         Style::default().fg(Color::Green)
@@ -1496,7 +1562,134 @@ impl ConfigTui {
     }
 
     fn render_layout_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
-        todo!()
+        let config = config::load_config(None).unwrap();
+        let lines = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled(
+                    "Show section titles",
+                    if selected == 0 {
+                        Style::default().fg(Color::Yellow).bold()
+                    } else {
+                        Style::default().fg(Color::White)
+                    },
+                ),
+                Span::from("  "),
+                Span::styled(
+                    if config.appearance.show_section_titles {
+                        "[ ON ]"
+                    } else {
+                        "[ OFF ]"
+                    },
+                    if config.appearance.show_section_titles {
+                        Style::default().fg(Color::Green)
+                    } else {
+                        Style::default().fg(Color::Red)
+                    },
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    "Logo gap:",
+                    if selected == 1 {
+                        Style::default().fg(Color::Yellow).bold()
+                    } else {
+                        Style::default().fg(Color::White)
+                    },
+                ),
+                Span::from("  "),
+                Span::styled(
+                    format!("{}", config.appearance.logo_gap),
+                    if selected == 1 {
+                        Style::default().fg(Color::Yellow).bold()
+                    } else {
+                        Style::default().fg(Color::White)
+                    },
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    "Label gap:",
+                    if selected == 2 {
+                        Style::default().fg(Color::Yellow).bold()
+                    } else {
+                        Style::default().fg(Color::White)
+                    },
+                ),
+                Span::from("  "),
+                Span::styled(
+                    format!("{}", config.appearance.label_gap),
+                    if selected == 2 {
+                        Style::default().fg(Color::Yellow).bold()
+                    } else {
+                        Style::default().fg(Color::White)
+                    },
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    "Gap between sections",
+                    if selected == 3 {
+                        Style::default().fg(Color::Yellow).bold()
+                    } else {
+                        Style::default().fg(Color::White)
+                    },
+                ),
+                Span::from("  "),
+                Span::styled(
+                    if config.appearance.show_section_gap {
+                        "[ ON ]"
+                    } else {
+                        "[ OFF ]"
+                    },
+                    if config.appearance.show_section_gap {
+                        Style::default().fg(Color::Green)
+                    } else {
+                        Style::default().fg(Color::Red)
+                    },
+                ),
+            ]),
+            Line::from(""),
+            Line::styled(
+                "Back",
+                if selected == 4 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                },
+            ),
+            Line::from(""),
+            Line::from(""),
+        ];
+        let title =
+            Line::from("  fetchall | Layout  ").style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom = Line::from(
+            " Use Up/Down to navigate, Left/Right to adjust, Enter to toggle, and Esc to exit. "
+                .italic(),
+        )
+        .centered()
+        .style(Style::default().fg(Color::DarkGray));
+
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
     }
 
     fn render_colour_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
@@ -1504,7 +1697,7 @@ impl ConfigTui {
             Line::from(""),
             Line::from(""),
             Line::styled(
-                "Main Colours",
+                "Text Colours",
                 if selected == 0 {
                     Style::default().fg(Color::Yellow).bold()
                 } else {
@@ -1793,7 +1986,7 @@ fn main() -> Result<()> {
         .filter_map(|component| component.collect().ok())
         .reduce(|acc, output| acc + output)
         .unwrap_or_else(|| {
-            UserComponent::new(&config::UserConfig::default(), "auto", &true)
+            UserComponent::new(&config::UserConfig::default(), "auto", &false, &false)
                 .collect()
                 .unwrap_or(ComponentOutput { rows: Vec::new() })
         });
