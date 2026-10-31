@@ -623,7 +623,7 @@ impl ConfigTui {
                         0 => self.screen = ConfigScreens::LogoMenu { selected: 0 },
                         1 => self.screen = ConfigScreens::ColourMenu { selected: 0 },
                         2 => self.screen = ConfigScreens::LayoutMenu { selected: 0 },
-                        3 => self.screen = ConfigScreens::MainMenu { selected: 2 },
+                        3 => self.screen = ConfigScreens::MainMenu { selected: 1 },
                         _ => {}
                     }
                 } else if let ConfigScreens::LogoMenu { selected } = &mut self.screen {
@@ -715,7 +715,7 @@ impl ConfigTui {
                             0 if !gh_status.1 => 2,
                             1 if !*hac_status => 3,
                             2 => {
-                                self.screen = ConfigScreens::MainMenu { selected: 3 };
+                                self.screen = ConfigScreens::MainMenu { selected: 2 };
                                 0
                             }
                             _ => 0,
