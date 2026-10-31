@@ -59,8 +59,7 @@ enum AuthService {
 #[derive(Parser)]
 #[command(
     name="fetchall",
-    // TODO: add about
-    about="TBA",
+    about="Fetchall is a CLI system information tool that displays system specs, project info, and other interesting info & stats in a modern format. Run `fetchall config` to launch the interactive configuration wizard.",
     version = env!("CARGO_PKG_VERSION"),
     disable_help_subcommand = true,
     author = "MadAvidCoder"
