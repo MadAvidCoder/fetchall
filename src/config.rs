@@ -458,3 +458,10 @@ pub fn get_profiles() -> Vec<String> {
     profiles.sort();
     profiles
 }
+
+pub fn set_logo(logo: &str) -> Result<()> {
+    let mut config = load_config(None)?;
+    config.appearance.logo = logo.to_string();
+    save_config(&config, None)?;
+    Ok(())
+}

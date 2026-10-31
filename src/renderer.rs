@@ -3,7 +3,7 @@ use crate::styled_text::StyledText;
 use itertools::{EitherOrBoth, Itertools};
 
 pub fn render(logo: &StyledText, info: &ComponentOutput, logo_gap: usize, label_gap: usize) {
-    let logo_width = logo.lines().map(|line| line.width()).max().unwrap_or(40);
+    let logo_width = logo.lines().map(|line| line.width()).max().unwrap_or(0);
     let label_width = info
         .rows
         .iter()
@@ -13,7 +13,9 @@ pub fn render(logo: &StyledText, info: &ComponentOutput, logo_gap: usize, label_
         })
         .map(|label| label.width())
         .max()
-        .unwrap_or(10);
+        .unwrap_or(0);
+
+    let logo_gap = if logo_width > 0 { logo_gap } else { 0 };
 
     for paired in logo.lines().zip_longest(info.rows.iter()) {
         let (line, row): (StyledText, &OutputRow) = match paired {

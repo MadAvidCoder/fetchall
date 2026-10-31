@@ -17,6 +17,7 @@ use crate::styled_text::StyledText;
 use anyhow::Result;
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use git2::Config;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Rect};
 use ratatui::style::{Color, Style, Stylize};
@@ -97,7 +98,24 @@ enum ConfigScreens {
         name: String,
         cursor: usize,
     },
+    FileInputMenu {
+        title: String,
+        input: String,
+        cursor: usize,
+    },
     AppearanceMenu {
+        selected: usize,
+    },
+    LogoMenu {
+        selected: usize,
+    },
+    OsLogoMenu {
+        selected: usize,
+    },
+    ColourMenu {
+        selected: usize,
+    },
+    LayoutMenu {
         selected: usize,
     },
     ComponentsMenu,
@@ -136,7 +154,8 @@ impl ConfigTui {
                 .contains(crossterm::event::KeyModifiers::CONTROL))
             || ((key_event.code == KeyCode::Esc || key_event.code == KeyCode::Char('q'))
                 && !matches!(self.screen, ConfigScreens::NewProfileMenu { .. })
-                && !matches!(self.screen, ConfigScreens::RenameProfileMenu { .. }))
+                && !matches!(self.screen, ConfigScreens::RenameProfileMenu { .. })
+                && !matches!(self.screen, ConfigScreens::FileInputMenu { .. }))
         {
             self.exit = true;
             return;
@@ -216,6 +235,45 @@ impl ConfigTui {
             }
             return;
         }
+        if let ConfigScreens::FileInputMenu {
+            input,
+            cursor,
+            title,
+        } = &mut self.screen
+        {
+            match key_event.code {
+                KeyCode::Esc => self.screen = ConfigScreens::LogoMenu { selected: 3 },
+                KeyCode::Char(c) if c != '\t' && c != '\n' && c != '\r' && c != '\0' => {
+                    input.insert(*cursor, c);
+                    *cursor += 1;
+                }
+                KeyCode::Backspace if *cursor > 0 => {
+                    input.remove(*cursor - 1);
+                    *cursor -= 1;
+                }
+                KeyCode::Delete if *cursor < input.len() => {
+                    input.remove(*cursor);
+                }
+                KeyCode::Left if *cursor > 0 => *cursor -= 1,
+                KeyCode::Right if *cursor < input.len() => *cursor += 1,
+                KeyCode::Enter
+                    if match std::fs::read_to_string(&input) {
+                        Ok(c) if !c.trim().is_empty() => {
+                            config::set_logo(input).unwrap();
+                            true
+                        }
+                        _ => {
+                            *title = "Invalid file path or empty file\nPlease check the absolute path to an ASCII art file:".to_string();
+                            false
+                        }
+                    } =>
+                {
+                    self.screen = ConfigScreens::LogoMenu { selected: 3 };
+                }
+                _ => {}
+            }
+            return;
+        }
 
         match key_event.code {
             KeyCode::Down => {
@@ -245,6 +303,10 @@ impl ConfigTui {
                     }
                 } else if let ConfigScreens::AppearanceMenu { selected } = &mut self.screen {
                     *selected = (*selected + 1) % 4;
+                } else if let ConfigScreens::LogoMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 1) % 6;
+                } else if let ConfigScreens::OsLogoMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 1) % (logo::OS_LOGOS.len() + 1);
                 }
             }
             KeyCode::Up => {
@@ -276,6 +338,11 @@ impl ConfigTui {
                     }
                 } else if let ConfigScreens::AppearanceMenu { selected } = &mut self.screen {
                     *selected = (*selected + 4 - 1) % 4;
+                } else if let ConfigScreens::LogoMenu { selected } = &mut self.screen {
+                    *selected = (*selected + 6 - 1) % 6;
+                } else if let ConfigScreens::OsLogoMenu { selected } = &mut self.screen {
+                    *selected =
+                        (*selected + logo::OS_LOGOS.len() + 1 - 1) % (logo::OS_LOGOS.len() + 1);
                 }
             }
             KeyCode::Char('m') => {
@@ -320,6 +387,7 @@ impl ConfigTui {
                         self.screen = ConfigScreens::MainMenu { selected: 0 };
                     } else if *selected == config::get_profiles().len() + 1 {
                         config::reset_profiles().unwrap();
+                        self.screen = ConfigScreens::ProfilesMenu { selected: 0 };
                     } else if *selected == config::get_profiles().len() {
                         self.screen = ConfigScreens::NewProfileMenu {
                             name: String::new(),
@@ -406,12 +474,43 @@ impl ConfigTui {
                     }
                 } else if let ConfigScreens::AppearanceMenu { selected } = &mut self.screen {
                     match selected {
-                        0 => todo!("Logo"),
-                        1 => todo!("Colour Scheme"),
-                        2 => todo!("Layout"),
-                        3 => self.screen = ConfigScreens::MainMenu { selected: 0 },
+                        0 => self.screen = ConfigScreens::LogoMenu { selected: 0 },
+                        1 => self.screen = ConfigScreens::ColourMenu { selected: 0 },
+                        2 => self.screen = ConfigScreens::LayoutMenu { selected: 0 },
+                        3 => self.screen = ConfigScreens::MainMenu { selected: 2 },
                         _ => {}
                     }
+                } else if let ConfigScreens::LogoMenu { selected } = &mut self.screen {
+                    match selected {
+                        0 => config::set_logo("auto").unwrap(),
+                        1 => self.screen = ConfigScreens::OsLogoMenu { selected: 0 },
+                        2 => config::set_logo("fetchall").unwrap(),
+                        3 => {
+                            let cur = config::load_config(None).unwrap().appearance.logo.clone();
+                            self.screen = ConfigScreens::FileInputMenu {
+                                input: if cur != "none"
+                                    && cur != "auto"
+                                    && cur != "fetchall"
+                                    && !logo::OS_LOGOS.contains(&cur.as_str())
+                                {
+                                    cur
+                                } else {
+                                    String::new()
+                                },
+                                cursor: 0,
+                                title: "Please enter the absolute path to the ASCII art file:"
+                                    .to_string(),
+                            }
+                        }
+                        4 => config::set_logo("none").unwrap(),
+                        5 => self.screen = ConfigScreens::AppearanceMenu { selected: 0 },
+                        _ => {}
+                    }
+                } else if let ConfigScreens::OsLogoMenu { selected } = &mut self.screen {
+                    if *selected < logo::OS_LOGOS.len() {
+                        config::set_logo(logo::OS_LOGOS[*selected]).unwrap();
+                    }
+                    self.screen = ConfigScreens::LogoMenu { selected: 1 };
                 }
             }
 
@@ -560,6 +659,81 @@ impl ConfigTui {
             Line::from(""),
             Line::from(""),
         ];
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
+    fn render_select_file(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        text: &str,
+        cursor: usize,
+        msg: &str,
+    ) {
+        let title: Line<'_> = Line::from("  fetchall | Logo | Select ASCII Art  ")
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom =
+            Line::from(" Type the file's path, Enter to confirm, and Esc to cancel ".italic())
+                .centered()
+                .style(Style::default().fg(Color::DarkGray));
+        let cur_name = if cursor < text.len() {
+            Line::from(vec![
+                Span::styled(&text[..cursor], Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    &text[cursor..cursor.saturating_add(1)],
+                    Style::default().bg(Color::LightYellow).fg(Color::Black),
+                ),
+                Span::styled(
+                    &text[cursor.saturating_add(1)..],
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::from(" "),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(text, Style::default().fg(Color::Yellow)),
+                Span::styled(
+                    " ",
+                    Style::default().bg(Color::LightYellow).fg(Color::Black),
+                ),
+            ])
+        };
+        let msg = if msg.lines().count() > 1 {
+            let mut t = vec![Line::styled(
+                msg.lines().next().unwrap_or(""),
+                Style::default().fg(Color::Red).bold(),
+            )];
+            t.extend(msg.lines().skip(1).map(Line::from).collect::<Vec<Line>>());
+            t
+        } else {
+            vec![Line::from(msg)]
+        };
+        let mut lines = vec![Line::from("")];
+        lines.extend(msg.clone());
+        lines.extend(vec![
+            Line::from(""),
+            cur_name,
+            Line::from(""),
+            Line::from(""),
+        ]);
         let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
         let width = [line_max_width, title.width(), title_bottom.width()]
             .into_iter()
@@ -921,6 +1095,207 @@ impl ConfigTui {
             .render(area, buf);
     }
 
+    fn render_os_logos(&self, area: Rect, buf: &mut Buffer, selected: usize) {
+        let current = config::load_config(None).unwrap().appearance.logo;
+        let mut lines = vec![Line::from(""), Line::from("")];
+        for os in logo::OS_LOGOS.iter() {
+            lines.push(Line::styled(
+                os.to_string(),
+                if selected == logo::OS_LOGOS.iter().position(|p| p == os).unwrap_or(0) {
+                    if &current == os {
+                        Style::default().fg(Color::LightGreen).bold().italic()
+                    } else {
+                        Style::default().fg(Color::Yellow).bold()
+                    }
+                } else {
+                    if &current == os {
+                        Style::default().fg(Color::Green).italic()
+                    } else {
+                        Style::default().fg(Color::White)
+                    }
+                },
+            ))
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::styled(
+            "Back",
+            if selected == logo::OS_LOGOS.len() {
+                Style::default().fg(Color::Yellow).bold()
+            } else {
+                Style::default().fg(Color::DarkGray)
+            },
+        ));
+        lines.push(Line::from(""));
+        lines.push(Line::from(""));
+        let title = Line::from("  fetchall | Logo | OS Override  ")
+            .style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom = Line::from(
+            " Use arrow keys to navigate, Enter to select an OS, and Esc to exit. ".italic(),
+        )
+        .centered()
+        .style(Style::default().fg(Color::DarkGray));
+
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
+    fn render_logo_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
+        let current = config::load_config(None).unwrap().appearance.logo;
+        let lines = vec![
+            Line::from(""),
+            Line::from(""),
+            Line::styled(
+                "Automatic (OS Detection)",
+                if selected == 0 {
+                    if current == "auto" {
+                        Style::default().fg(Color::LightGreen).bold().italic()
+                    } else {
+                        Style::default().fg(Color::Yellow)
+                    }
+                } else {
+                    if current == "auto" {
+                        Style::default().fg(Color::Green).italic()
+                    } else {
+                        Style::default().fg(Color::White)
+                    }
+                },
+            ),
+            Line::styled(
+                "Override OS Logo",
+                if selected == 1 {
+                    if logo::OS_LOGOS.contains(&current.to_lowercase().as_str()) {
+                        Style::default().fg(Color::LightGreen).bold().italic()
+                    } else {
+                        Style::default().fg(Color::Yellow)
+                    }
+                } else {
+                    if logo::OS_LOGOS.contains(&current.to_lowercase().as_str()) {
+                        Style::default().fg(Color::Green).italic()
+                    } else {
+                        Style::default().fg(Color::White)
+                    }
+                },
+            ),
+            Line::styled(
+                "Fetchall Logo",
+                if selected == 2 {
+                    if current == "fetchall" {
+                        Style::default().fg(Color::LightGreen).bold().italic()
+                    } else {
+                        Style::default().fg(Color::Yellow).bold()
+                    }
+                } else {
+                    if current == "fetchall" {
+                        Style::default().fg(Color::Green).italic()
+                    } else {
+                        Style::default().fg(Color::White)
+                    }
+                },
+            ),
+            Line::styled(
+                "Custom ASCII File",
+                if selected == 3 {
+                    if current != "auto"
+                        && current != "fetchall"
+                        && !logo::OS_LOGOS.contains(&current.to_lowercase().as_str())
+                    {
+                        Style::default().fg(Color::LightGreen).bold().italic()
+                    } else {
+                        Style::default().fg(Color::Yellow).bold()
+                    }
+                } else {
+                    if current != "auto"
+                        && current != "fetchall"
+                        && current != "none"
+                        && !logo::OS_LOGOS.contains(&current.to_lowercase().as_str())
+                    {
+                        Style::default().fg(Color::Green).italic()
+                    } else {
+                        Style::default().fg(Color::White)
+                    }
+                },
+            ),
+            Line::styled(
+                "None",
+                if selected == 4 {
+                    if current == "none" {
+                        Style::default().fg(Color::LightGreen).bold().italic()
+                    } else {
+                        Style::default().fg(Color::Yellow).bold()
+                    }
+                } else {
+                    if current == "none" {
+                        Style::default().fg(Color::Green).italic()
+                    } else {
+                        Style::default().fg(Color::White)
+                    }
+                },
+            ),
+            Line::from(""),
+            Line::styled(
+                "Back",
+                if selected == 5 {
+                    Style::default().fg(Color::Yellow).bold()
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                },
+            ),
+            Line::from(""),
+            Line::from(""),
+        ];
+        let title =
+            Line::from("  fetchall | Logo Config  ").style(Style::default().fg(Color::Cyan).bold());
+        let title_bottom =
+            Line::from(" Use arrow keys to navigate, Enter to select, and Esc to exit ".italic())
+                .centered()
+                .style(Style::default().fg(Color::DarkGray));
+
+        let line_max_width = lines.iter().map(|f| f.width()).max().unwrap_or(0);
+        let width = [line_max_width, title.width(), title_bottom.width()]
+            .into_iter()
+            .max()
+            .unwrap_or(0)
+            + 8;
+        let area = area.centered(
+            Constraint::Length(width as u16),
+            Constraint::Length((lines.len() + 2) as u16),
+        );
+
+        Paragraph::new(Text::from(lines).centered())
+            .block(
+                Block::bordered()
+                    .title(title)
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(title_bottom),
+            )
+            .render(area, buf);
+    }
+
+    fn render_layout_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
+        todo!()
+    }
+
+    fn render_colour_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
+        todo!()
+    }
+
     fn render_main_menu(&self, area: Rect, buf: &mut Buffer, selected: usize) {
         let lines: Vec<Line<'_>> = vec![
             Line::from(""),
@@ -1023,6 +1398,15 @@ impl Widget for &ConfigTui {
             ConfigScreens::AppearanceMenu { selected } => {
                 self.render_appearance(area, buf, *selected)
             }
+            ConfigScreens::LogoMenu { selected } => self.render_logo_menu(area, buf, *selected),
+            ConfigScreens::FileInputMenu {
+                input,
+                cursor,
+                title,
+            } => self.render_select_file(area, buf, input, *cursor, title),
+            ConfigScreens::OsLogoMenu { selected } => self.render_os_logos(area, buf, *selected),
+            ConfigScreens::ColourMenu { selected } => self.render_colour_menu(area, buf, *selected),
+            ConfigScreens::LayoutMenu { selected } => self.render_layout_menu(area, buf, *selected),
             ConfigScreens::ComponentsMenu => todo!(),
             ConfigScreens::IntegrationsMenu => todo!(),
         };

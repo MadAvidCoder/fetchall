@@ -245,6 +245,10 @@ const LOGOS: &[(&str, &str, &str)] = &[
     ),
 ];
 
+pub const OS_LOGOS: &[&str] = &[
+    "windows", "macos", "darwin", "arch", "ubuntu", "debian", "fedora", "nixos", "linux",
+];
+
 fn lookup_logo(name: &str) -> Option<(&'static str, &'static str)> {
     LOGOS
         .iter()
@@ -268,6 +272,8 @@ pub fn get_logo(mode: &str, colour: &str) -> StyledText {
             logo_colour
         };
         StyledText::new(logo).apply_style(colour)
+    } else if mode == "none" {
+        StyledText::new("")
     } else if let Some((logo, logo_colour)) = lookup_logo(mode) {
         let colour = if colour != "auto" {
             colour
